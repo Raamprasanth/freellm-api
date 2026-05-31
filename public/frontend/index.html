@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IPL AUCTION ARENA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070a0f;
+      --surface: #0d1117;
+      --surface2: #161b24;
+      --border: #1e2a3a;
+      --gold: #f5b800;
+      --gold2: #ffda6a;
+      --red: #e02020;
+      --cyan: #00d4ff;
+      --green: #00e676;
+      --text: #e8edf5;
+      --muted: #7a8fa6;
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-body: 'Rajdhani', sans-serif;
+      --font-mono: 'Share Tech Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 16px;
+      overflow-x: hidden;
+      cursor: default;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      background: rgba(7,10,15,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 1.8rem;
+      letter-spacing: 3px;
+      color: var(--gold);
+      text-shadow: 0 0 20px rgba(245,184,0,0.5);
+    }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--gold); }
+    .nav-cta {
+      background: var(--gold);
+      color: #000;
+      border: none;
+      padding: 0.5rem 1.4rem;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 2px;
+      cursor: pointer;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      transition: background 0.2s, transform 0.1s;
+    }
+    .nav-cta:hover { background: var(--gold2); transform: scale(1.04); }
+
+    /* ── HERO ── */
+    #hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 6rem 2rem 4rem;
+      overflow: hidden;
+    }
+
+    .hero-grid-bg {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridPan 20s linear infinite;
+    }
+    @keyframes gridPan { from { transform: translateY(0); } to { transform: translateY(60px); } }
+
+    .hero-glow {
+      position: absolute; top: 30%; left: 50%; transform: translate(-50%,-50%);
+      width: 700px; height: 400px;
+      background: radial-gradient(ellipse, rgba(245,184,0,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 4px;
+      color: var(--cyan);
+      border: 1px solid rgba(0,212,255,0.3);
+      padding: 0.4rem 1rem;
+      margin-bottom: 1.5rem;
+      animation: fadeDown 0.6s ease both;
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(4rem, 12vw, 10rem);
+      line-height: 0.9;
+      letter-spacing: 6px;
+      color: var(--text);
+      animation: fadeDown 0.7s 0.1s ease both;
+    }
+    .hero-title span { color: var(--gold); }
+    .hero-subtitle {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin: 1.2rem 0 2.5rem;
+      animation: fadeDown 0.7s 0.2s ease both;
+    }
+    .hero-actions {
+      display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+      animation: fadeDown 0.7s 0.3s ease both;
+    }
+    .btn-primary {
+      background: var(--gold);
+      color: #000;
+      padding: 0.9rem 2.4rem;
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      letter-spacing: 3px;
+      border: none; cursor: pointer;
+      clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(245,184,0,0.4); }
+    .btn-secondary {
+      background: transparent;
+      color: var(--cyan);
+      padding: 0.9rem 2.4rem;
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      letter-spacing: 3px;
+      border: 1px solid var(--cyan); cursor: pointer;
+      clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-secondary:hover { background: rgba(0,212,255,0.08); transform: translateY(-3px); }
+
+    .hero-stats {
+      display: flex; gap: 3rem; margin-top: 4rem; flex-wrap: wrap; justify-content: center;
+      animation: fadeUp 0.7s 0.5s ease both;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat-num {
+      font-family: var(--font-display);
+      font-size: 2.8rem;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .hero-stat-label {
+      font-size: 0.7rem;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    @keyframes fadeDown { from { opacity:0; transform:translateY(-24px);} to {opacity:1;transform:translateY(0);} }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(24px); } to {opacity:1;transform:translateY(0);} }
+
+    /* ── SECTION SHARED ── */
+    section { padding: 6rem 2rem; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 4px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      margin-bottom: 0.6rem;
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      letter-spacing: 4px;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+    .section-line {
+      width: 80px; height: 3px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+      margin: 1rem 0 3rem;
+    }
+
+    /* ── IPL FACTS ── */
+    #facts { background: var(--surface); }
+    .facts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .fact-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--gold);
+      padding: 1.5rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .fact-card::before {
+      content: attr(data-num);
+      position: absolute; right: 1rem; top: 0.5rem;
+      font-family: var(--font-display);
+      font-size: 4rem;
+      color: rgba(245,184,0,0.06);
+      line-height: 1;
+    }
+    .fact-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .fact-icon { font-size: 1.8rem; margin-bottom: 0.8rem; }
+    .fact-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      color: var(--gold);
+      margin-bottom: 0.5rem;
+    }
+    .fact-text { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── TEAMS ── */
+    #teams { background: var(--bg); }
+    .teams-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+    .team-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid;
+      padding: 1.8rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .team-card:hover { transform: translateY(-5px); }
+    .team-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.2rem; }
+    .team-emoji { font-size: 2.5rem; }
+    .team-name {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+    }
+    .team-abbr {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 3px;
+      color: var(--muted);
+    }
+    .team-divider { height: 1px; background: var(--border); margin: 1rem 0; }
+    .team-stat-row { display: flex; justify-content: space-between; margin-bottom: 0.6rem; }
+    .team-stat-key { font-size: 0.8rem; color: var(--muted); letter-spacing: 1px; }
+    .team-stat-val { font-weight: 700; font-size: 0.9rem; }
+    .team-milestone {
+      font-size: 0.8rem;
+      color: var(--muted);
+      border-left: 2px solid var(--border);
+      padding-left: 0.8rem;
+      margin-top: 1rem;
+      line-height: 1.5;
+    }
+
+    /* ── AUCTION MECHANICS ── */
+    #auction { background: var(--surface); }
+    .mechanics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1.5rem;
+    }
+    .mechanic-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1.8rem;
+      text-align: center;
+      position: relative;
+      transition: border-color 0.2s;
+    }
+    .mechanic-card:hover { border-color: var(--cyan); }
+    .mechanic-step {
+      font-family: var(--font-display);
+      font-size: 3rem;
+      color: rgba(0,212,255,0.15);
+      position: absolute; top: 0.5rem; right: 1rem;
+    }
+    .mechanic-icon { font-size: 2rem; margin-bottom: 0.8rem; }
+    .mechanic-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      color: var(--cyan);
+      margin-bottom: 0.5rem;
+    }
+    .mechanic-text { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── MILESTONES TIMELINE ── */
+    #milestones { background: var(--bg); }
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, var(--gold), var(--cyan), transparent);
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 2.5rem;
+      padding-left: 1.5rem;
+    }
+    .timeline-dot {
+      position: absolute; left: -2.4rem; top: 0.3rem;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 12px rgba(245,184,0,0.5);
+    }
+    .timeline-year {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 3px;
+      color: var(--gold);
+    }
+    .timeline-event {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0.2rem 0;
+    }
+    .timeline-detail { font-size: 0.85rem; color: var(--muted); }
+
+    /* ── LEADERBOARD ── */
+    #leaderboard { background: var(--surface); }
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-body);
+    }
+    .leaderboard-table th {
+      text-align: left;
+      padding: 0.8rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    .leaderboard-table td {
+      padding: 0.9rem 1rem;
+      font-size: 0.9rem;
+      border-bottom: 1px solid rgba(30,42,58,0.5);
+    }
+    .leaderboard-table tr:hover td { background: rgba(245,184,0,0.03); }
+    .rank-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      font-family: var(--font-display);
+      font-size: 1rem;
+    }
+    .rank-1 { color: #ffd700; }
+    .rank-2 { color: #c0c0c0; }
+    .rank-3 { color: #cd7f32; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      letter-spacing: 4px;
+      color: var(--gold);
+      margin-bottom: 0.5rem;
+    }
+    .footer-text { font-size: 0.8rem; color: var(--muted); letter-spacing: 2px; }
+
+    /* ── TICKER ── */
+    .ticker-wrap {
+      background: var(--gold);
+      color: #000;
+      padding: 0.35rem 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .ticker-inner {
+      display: inline-block;
+      animation: ticker 30s linear infinite;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      font-weight: 700;
+    }
+    @keyframes ticker {
+      from { transform: translateX(100vw); }
+      to   { transform: translateX(-100%); }
+    }
+
+    /* ── PULSE BADGE ── */
+    .live-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: rgba(224,32,32,0.15);
+      border: 1px solid var(--red);
+      padding: 0.3rem 0.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 3px;
+      color: var(--red);
+      margin-left: 1rem;
+    }
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--red);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">🏏 IPL ARENA</div>
+    <ul class="nav-links">
+      <li><a href="#facts">Facts</a></li>
+      <li><a href="#teams">Teams</a></li>
+      <li><a href="#auction">Auction</a></li>
+      <li><a href="#milestones">History</a></li>
+      <li><a href="#leaderboard">Records</a></li>
+    </ul>
+    <button class="nav-cta" onclick="location.href='login.html'">PLAY NOW</button>
+  </nav>
+
+  <!-- TICKER -->
+  <div class="ticker-wrap" style="margin-top:60px;">
+    <span class="ticker-inner">
+      🏏 IPL 2025 AUCTION LIVE &nbsp;●&nbsp; BUDGET: ₹120 CR PER TEAM &nbsp;●&nbsp;
+      VIRAT KOHLI — ALL-TIME LEADING RUN SCORER &nbsp;●&nbsp;
+      MS DHONI — MOST WINS AS CAPTAIN &nbsp;●&nbsp;
+      TOTAL PLAYERS AUCTIONED IN IPL HISTORY: 2000+ &nbsp;●&nbsp;
+      MOST EXPENSIVE SIGNING: SAM CURRAN ₹18.5 CR (2023) &nbsp;●&nbsp;
+      IPL VALUED AT $16.4 BILLION &nbsp;●&nbsp;
+      10 TEAMS · 74 MATCHES · 1 CHAMPION &nbsp;●&nbsp;
+      🏏 IPL 2025 AUCTION LIVE &nbsp;●&nbsp;
+    </span>
+  </div>
+
+  <!-- HERO -->
+  <section id="hero">
+    <div class="hero-grid-bg"></div>
+    <div class="hero-glow"></div>
+    <div class="hero-badge">INDIAN PREMIER LEAGUE · AUCTION SIMULATOR</div>
+    <h1 class="hero-title">IPL<br><span>AUCTION</span><br>ARENA</h1>
+    <p class="hero-subtitle">Build Your Dream Team · Outbid Rivals · Dominate the League</p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="location.href='game.html'">START AUCTION</button>
+      <button class="btn-secondary" onclick="location.href='teams.html'">VIEW TEAMS</button>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hero-stat-num">16</div><div class="hero-stat-label">Seasons</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">10</div><div class="hero-stat-label">Franchises</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">₹120CR</div><div class="hero-stat-label">Auction Budget</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">200+</div><div class="hero-stat-label">Players Pool</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">$16.4B</div><div class="hero-stat-label">League Value</div></div>
+    </div>
+  </section>
+
+  <!-- FACTS -->
+  <section id="facts">
+    <div class="section-inner">
+      <div class="section-tag">// KNOWLEDGE BASE</div>
+      <h2 class="section-title">IPL <span style="color:var(--gold)">FACTS</span></h2>
+      <div class="section-line"></div>
+      <div class="facts-grid">
+
+        <div class="fact-card" data-num="01">
+          <div class="fact-icon">🚀</div>
+          <div class="fact-title">BORN IN 2008</div>
+          <div class="fact-text">IPL was launched on April 18, 2008 by BCCI under commissioner Lalit Modi. The first match was played between Kolkata Knight Riders and Royal Challengers Bangalore in Bangalore.</div>
+        </div>
+
+        <div class="fact-card" data-num="02">
+          <div class="fact-icon">💰</div>
+          <div class="fact-title">BILLION-DOLLAR BEAST</div>
+          <div class="fact-text">The IPL brand is valued at $16.4 billion (2023), making it one of the most valuable sports leagues globally — ahead of the NHL and MLB in terms of per-match value.</div>
+        </div>
+
+        <div class="fact-card" data-num="03">
+          <div class="fact-icon">🌍</div>
+          <div class="fact-title">GLOBAL VIEWERSHIP</div>
+          <div class="fact-text">IPL 2023 averaged 9.5 million viewers per match on JioCinema alone. The tournament is broadcast in over 120 countries, reaching 600+ million fans worldwide each season.</div>
+        </div>
+
+        <div class="fact-card" data-num="04">
+          <div class="fact-icon">🏆</div>
+          <div class="fact-title">MOST TITLES</div>
+          <div class="fact-text">Mumbai Indians hold the record with 5 IPL championships (2013, 2015, 2017, 2019, 2020). Chennai Super Kings follow closely with 5 titles as well (2010, 2011, 2018, 2021, 2023).</div>
+        </div>
+
+        <div class="fact-card" data-num="05">
+          <div class="fact-icon">🏏</div>
+          <div class="fact-title">RUN MACHINE</div>
+          <div class="fact-text">Virat Kohli is IPL's all-time leading run scorer with 8000+ runs. He hit a record 973 runs in a single season (2016), including 4 centuries — a feat still unmatched.</div>
+        </div>
+
+        <div class="fact-card" data-num="06">
+          <div class="fact-icon">💎</div>
+          <div class="fact-title">AUCTION RECORD</div>
+          <div class="fact-text">Sam Curran became the most expensive player in IPL auction history when Punjab Kings bought him for ₹18.50 crore in the 2023 mega auction, breaking all previous records.</div>
+        </div>
+
+        <div class="fact-card" data-num="07">
+          <div class="fact-icon">⚡</div>
+          <div class="fact-title">SHORTEST FORMAT</div>
+          <div class="fact-text">Each IPL match is a T20 contest — 20 overs per side. Matches are completed in ~3.5 hours, making it cricket's most action-packed format with big hits and dramatic finishes.</div>
+        </div>
+
+        <div class="fact-card" data-num="08">
+          <div class="fact-icon">🎯</div>
+          <div class="fact-title">WICKET WIZARD</div>
+          <div class="fact-text">Yuzvendra Chahal leads the IPL wicket charts with 200+ wickets. Lasith Malinga held the previous record and famously took 4 wickets in 4 consecutive balls.</div>
+        </div>
+
+        <div class="fact-card" data-num="09">
+          <div class="fact-icon">📺</div>
+          <div class="fact-title">MEDIA RIGHTS MEGA-DEAL</div>
+          <div class="fact-text">In 2022, IPL media rights were sold for a record ₹48,390 crore (approx $6 billion) for 5 years to JioCinema (digital) and Star Sports (TV) — the second most expensive sports rights globally.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TEAMS -->
+  <section id="teams">
+    <div class="section-inner">
+      <div class="section-tag">// FRANCHISE DATABASE</div>
+      <h2 class="section-title">THE <span style="color:var(--gold)">FRANCHISES</span></h2>
+      <div class="section-line"></div>
+      <div class="teams-grid">
+
+        <div class="team-card" style="border-top-color:#1168d0;" onclick="location.href='teams.html#mi'">
+          <div class="team-header">
+            <div class="team-emoji">🔵</div>
+            <div>
+              <div class="team-name" style="color:#1168d0">MUMBAI INDIANS</div>
+              <div class="team-abbr">MI · MUMBAI</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#1168d0">5 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Wankhede Stadium</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">CAPTAIN (ALL-TIME)</span><span class="team-stat-val">Rohit Sharma</span></div>
+          <div class="team-milestone">★ Only team to win back-to-back titles (2019–20). Hardik Pandya's finishes define their era.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#f7a721;" onclick="location.href='teams.html#csk'">
+          <div class="team-header">
+            <div class="team-emoji">🟡</div>
+            <div>
+              <div class="team-name" style="color:#f7a721">CHENNAI SUPER KINGS</div>
+              <div class="team-abbr">CSK · CHENNAI</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#f7a721">5 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Chepauk Stadium</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">MS Dhoni</span></div>
+          <div class="team-milestone">★ Never been relegated. Reached 12 finals in 15 seasons. "Thala" Dhoni's finishing mastery is legendary.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#e1281d;" onclick="location.href='teams.html#rcb'">
+          <div class="team-header">
+            <div class="team-emoji">🔴</div>
+            <div>
+              <div class="team-name" style="color:#e1281d">ROYAL CHALLENGERS</div>
+              <div class="team-abbr">RCB · BANGALORE</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#e1281d">1 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">M. Chinnaswamy</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">Virat Kohli</span></div>
+          <div class="team-milestone">★ Virat Kohli's 973 runs in 2016 remains the greatest individual batting season in IPL. Won their maiden title in 2024.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#7b3f9e;" onclick="location.href='teams.html#kkr'">
+          <div class="team-header">
+            <div class="team-emoji">🟣</div>
+            <div>
+              <div class="team-name" style="color:#7b3f9e">KOLKATA KNIGHT RIDERS</div>
+              <div class="team-abbr">KKR · KOLKATA</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#7b3f9e">3 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Eden Gardens</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">Gautam Gambhir</span></div>
+          <div class="team-milestone">★ Won IPL 2024 with a dominant campaign. Eden Gardens — largest IPL venue (68,000 seats) — is their fortress.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#d71920;" onclick="location.href='teams.html#srh'">
+          <div class="team-header">
+            <div class="team-emoji">🟠</div>
+            <div>
+              <div class="team-name" style="color:#d71920">SUNRISERS HYDERABAD</div>
+              <div class="team-abbr">SRH · HYDERABAD</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#d71920">1 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Rajiv Gandhi Intl.</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">David Warner</span></div>
+          <div class="team-milestone">★ Famous for their bowling-first strategy. Won 2016 title. Travis Head's 2024 campaign was electrifying.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#004d99;" onclick="location.href='teams.html#rr'">
+          <div class="team-header">
+            <div class="team-emoji">🩷</div>
+            <div>
+              <div class="team-name" style="color:#004d99">RAJASTHAN ROYALS</div>
+              <div class="team-abbr">RR · JAIPUR</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#004d99">2 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Sawai Mansingh</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">Shane Warne</span></div>
+          <div class="team-milestone">★ Won the inaugural IPL 2008 as underdogs under Shane Warne. Known for unearthing raw talent cheaply at auctions.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#c41234;" onclick="location.href='teams.html#pbks'">
+          <div class="team-header">
+            <div class="team-emoji">🟥</div>
+            <div>
+              <div class="team-name" style="color:#c41234">PUNJAB KINGS</div>
+              <div class="team-abbr">PBKS · PUNJAB</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#c41234">0</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">PCA Stadium</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">NOTABLE BID</span><span class="team-stat-val">₹18.5CR (Curran)</span></div>
+          <div class="team-milestone">★ Made IPL history by paying the highest ever auction price (₹18.5 cr) for Sam Curran in 2023. Yet to clinch a title.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#00a0e3;" onclick="location.href='teams.html#dc'">
+          <div class="team-header">
+            <div class="team-emoji">🔷</div>
+            <div>
+              <div class="team-name" style="color:#00a0e3">DELHI CAPITALS</div>
+              <div class="team-abbr">DC · DELHI</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#00a0e3">0</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Arun Jaitley</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">Rishabh Pant</span></div>
+          <div class="team-milestone">★ Finalists in 2020. Rishabh Pant's explosive batting made DC one of the most entertaining teams of that era.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#1ca9c9;" onclick="location.href='teams.html#lsg'">
+          <div class="team-header">
+            <div class="team-emoji">🩵</div>
+            <div>
+              <div class="team-name" style="color:#1ca9c9">LUCKNOW SUPER GIANTS</div>
+              <div class="team-abbr">LSG · LUCKNOW</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#1ca9c9">0</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">BRSABV Ekana</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">KL Rahul</span></div>
+          <div class="team-milestone">★ Joined IPL 2022. Qualified for playoffs in their debut season. Quinton de Kock's form was pivotal to their rise.</div>
+        </div>
+
+        <div class="team-card" style="border-top-color:#10a39e;" onclick="location.href='teams.html#gt'">
+          <div class="team-header">
+            <div class="team-emoji">🏅</div>
+            <div>
+              <div class="team-name" style="color:#10a39e">GUJARAT TITANS</div>
+              <div class="team-abbr">GT · AHMEDABAD</div>
+            </div>
+          </div>
+          <div class="team-divider"></div>
+          <div class="team-stat-row"><span class="team-stat-key">TITLES</span><span class="team-stat-val" style="color:#10a39e">1 🏆</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">HOME GROUND</span><span class="team-stat-val">Narendra Modi</span></div>
+          <div class="team-stat-row"><span class="team-stat-key">ICON</span><span class="team-stat-val">Hardik Pandya</span></div>
+          <div class="team-milestone">★ Won IPL in their debut season (2022)! Hardik Pandya led them to back-to-back finals. Played at the world's largest stadium (1,32,000).</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- AUCTION MECHANICS -->
+  <section id="auction">
+    <div class="section-inner">
+      <div class="section-tag">// GAME MECHANICS</div>
+      <h2 class="section-title">HOW THE <span style="color:var(--gold)">AUCTION</span> WORKS</h2>
+      <div class="section-line"></div>
+      <div class="mechanics-grid">
+        <div class="mechanic-card">
+          <div class="mechanic-step">01</div>
+          <div class="mechanic-icon">🏢</div>
+          <div class="mechanic-title">PICK YOUR FRANCHISE</div>
+          <div class="mechanic-text">Choose from all 10 IPL franchises. Each team comes with ₹120 crore auction budget and a unique squad composition strategy.</div>
+        </div>
+        <div class="mechanic-card">
+          <div class="mechanic-step">02</div>
+          <div class="mechanic-icon">📋</div>
+          <div class="mechanic-title">SET RETENTION</div>
+          <div class="mechanic-text">Retain up to 5 players before the auction. Each retention reduces your purse. Retaining marquee players locks in key assets early.</div>
+        </div>
+        <div class="mechanic-card">
+          <div class="mechanic-step">03</div>
+          <div class="mechanic-icon">⚡</div>
+          <div class="mechanic-title">LIVE BIDDING</div>
+          <div class="mechanic-text">Players go under the hammer one by one. Bid against 9 other AI-controlled franchises in real-time auctions with a 60-second countdown.</div>
+        </div>
+        <div class="mechanic-card">
+          <div class="mechanic-step">04</div>
+          <div class="mechanic-icon">🔁</div>
+          <div class="mechanic-title">RTM CARDS</div>
+          <div class="mechanic-text">Use Right-to-Match (RTM) cards to reclaim released players at the final bid price. Each team gets 2 RTMs per mega auction.</div>
+        </div>
+        <div class="mechanic-card">
+          <div class="mechanic-step">05</div>
+          <div class="mechanic-icon">🧠</div>
+          <div class="mechanic-title">SQUAD STRATEGY</div>
+          <div class="mechanic-text">Balance your squad — you need at least 4 overseas players, 2 wicketkeepers, proper batting depth, and quality pace + spin options.</div>
+        </div>
+        <div class="mechanic-card">
+          <div class="mechanic-step">06</div>
+          <div class="mechanic-icon">🏆</div>
+          <div class="mechanic-title">SIMULATE SEASON</div>
+          <div class="mechanic-text">Once bidding closes, simulate your full IPL season. Performance is weighted by player stats, form, pitch conditions, and matchups.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MILESTONES TIMELINE -->
+  <section id="milestones">
+    <div class="section-inner">
+      <div class="section-tag">// CHRONICLES</div>
+      <h2 class="section-title">IPL <span style="color:var(--gold)">HISTORY</span></h2>
+      <div class="section-line"></div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-year">2008</div>
+          <div class="timeline-event">The Birth — IPL Season 1</div>
+          <div class="timeline-detail">Rajasthan Royals defeated CSK in a thrilling final. Shane Warne captained the underdogs to glory. Brendon McCullum smashed 158* off 73 balls in the first ever IPL match.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--cyan)"></div>
+          <div class="timeline-year">2010</div>
+          <div class="timeline-event">CSK's First Dynasty Begins</div>
+          <div class="timeline-detail">Chennai Super Kings under MS Dhoni won their first title, starting a dynasty. Sachin Tendulkar won the Orange Cap (618 runs). Mumbai Indians debut at the top.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-year">2013</div>
+          <div class="timeline-event">Mumbai Indians — Champions for the First Time</div>
+          <div class="timeline-detail">Rohit Sharma's MI defeated CSK in a nail-biting final. Dwayne Bravo's last-over heroics failed by 23 runs. Rohit started his journey as cricket's most successful IPL captain.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--cyan)"></div>
+          <div class="timeline-year">2016</div>
+          <div class="timeline-event">Kohli's Historic Season</div>
+          <div class="timeline-detail">Virat Kohli scored an unprecedented 973 runs in one season — 4 centuries, 7 fifties. Still the single greatest batting performance in IPL history. SRH won the title.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-year">2018</div>
+          <div class="timeline-event">The Comeback Kings Return</div>
+          <div class="timeline-detail">After a two-year ban (2016–17), CSK returned and won the title. Ambati Rayudu and Faf du Plessis powered them to glory. Called one of cricket's greatest comeback stories.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--cyan)"></div>
+          <div class="timeline-year">2019–20</div>
+          <div class="timeline-event">MI's Back-to-Back Dominance</div>
+          <div class="timeline-detail">Mumbai Indians became the first team to win back-to-back IPL titles. The 2020 season was played entirely in UAE due to COVID-19 — the first time IPL moved fully overseas.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-year">2022</div>
+          <div class="timeline-event">Gujarat's Dream Debut</div>
+          <div class="timeline-detail">New franchise Gujarat Titans (led by Hardik Pandya) won the IPL in their very first season — only the second debut-season winners after Rajasthan Royals (2008).</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--cyan)"></div>
+          <div class="timeline-year">2023</div>
+          <div class="timeline-event">Mega Auction & CSK's 5th Title</div>
+          <div class="timeline-detail">Sam Curran sold for ₹18.5 crore — the most expensive auction bid in IPL history. CSK won their 5th title in MS Dhoni's farewell season, scripting a fairy-tale ending.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-year">2024</div>
+          <div class="timeline-event">KKR Dominate; RCB Finally Win</div>
+          <div class="timeline-detail">Kolkata Knight Riders won IPL 2024 emphatically with Shreyas Iyer as captain. RCB finally clinched their first ever WPL title. The league broke viewership records again.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEADERBOARD -->
+  <section id="leaderboard">
+    <div class="section-inner">
+      <div class="section-tag">// RECORD BOOKS</div>
+      <h2 class="section-title">ALL-TIME <span style="color:var(--gold)">RECORDS</span></h2>
+      <div class="section-line"></div>
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>PLAYER</th>
+            <th>TEAM</th>
+            <th>RECORD</th>
+            <th>VALUE</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="rank-badge rank-1">1</span></td>
+            <td><strong>Virat Kohli</strong></td>
+            <td>RCB</td>
+            <td>Most Runs (All-time)</td>
+            <td style="color:var(--gold)">8000+ Runs</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge rank-2">2</span></td>
+            <td><strong>Yuzvendra Chahal</strong></td>
+            <td>RR</td>
+            <td>Most Wickets (All-time)</td>
+            <td style="color:var(--cyan)">205+ Wickets</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge rank-3">3</span></td>
+            <td><strong>MS Dhoni</strong></td>
+            <td>CSK</td>
+            <td>Most Wins as Captain</td>
+            <td style="color:var(--gold)">130+ Wins</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">4</span></td>
+            <td><strong>Virat Kohli</strong></td>
+            <td>RCB</td>
+            <td>Most Runs in a Season</td>
+            <td style="color:var(--gold)">973 Runs (2016)</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">5</span></td>
+            <td><strong>Chris Gayle</strong></td>
+            <td>RCB</td>
+            <td>Highest Individual Score</td>
+            <td style="color:var(--cyan)">175* (66 balls)</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">6</span></td>
+            <td><strong>AB de Villiers</strong></td>
+            <td>RCB</td>
+            <td>Most Sixes</td>
+            <td style="color:var(--gold)">251 Sixes</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">7</span></td>
+            <td><strong>Lasith Malinga</strong></td>
+            <td>MI</td>
+            <td>4 Wkts in 4 Balls</td>
+            <td style="color:var(--red)">vs DC (2011)</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">8</span></td>
+            <td><strong>Rohit Sharma</strong></td>
+            <td>MI</td>
+            <td>Most Title Wins (Captain)</td>
+            <td style="color:var(--gold)">5 Titles</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">9</span></td>
+            <td><strong>Sam Curran</strong></td>
+            <td>PBKS</td>
+            <td>Most Expensive Auction Buy</td>
+            <td style="color:var(--cyan)">₹18.5 Crore</td>
+          </tr>
+          <tr>
+            <td><span class="rank-badge">10</span></td>
+            <td><strong>Mumbai Indians</strong></td>
+            <td>Team</td>
+            <td>Most IPL Titles</td>
+            <td style="color:var(--gold)">5 Championships</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">🏏 IPL AUCTION ARENA</div>
+    <div class="footer-text">A FANTASY GAME EXPERIENCE · NOT AFFILIATED WITH BCCI OR IPL</div>
+    <div style="margin-top:1rem; font-size:0.75rem; color:var(--border)">
+      <a href="index.html" style="color:var(--muted); text-decoration:none; margin: 0 0.8rem;">Home</a>
+      <a href="teams.html" style="color:var(--muted); text-decoration:none; margin: 0 0.8rem;">Teams</a>
+      <a href="game.html" style="color:var(--muted); text-decoration:none; margin: 0 0.8rem;">Game</a>
+      <a href="auction.html" style="color:var(--muted); text-decoration:none; margin: 0 0.8rem;">Auction</a>
+      <a href="players.html" style="color:var(--muted); text-decoration:none; margin: 0 0.8rem;">Players</a>
+      <a href="leaderboard.html" style="color:var(--muted); text-decoration:none; margin: 0 0.8rem;">Leaderboard</a>
+    </div>
+  </footer>
+
+  <script>
+    // Animate cards on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.fact-card, .team-card, .mechanic-card, .timeline-item').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(30px)';
+      el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+      observer.observe(el);
+    });
+  </script>
+</body>
+</html>

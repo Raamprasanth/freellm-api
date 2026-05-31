@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Auction Arena — Live Player Auction</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&display=swap"
+        rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="shared_auction.css">
+    <style>
+        /* Stage-level sold overlay - appears on top of stage regardless of acWrap state */
+        .stage-sold-ov {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.35s;
+            z-index: 50;
+        }
+        .stage-sold-ov.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+    <div class="confetti-wrap" id="cfWrap"></div>
+
+    <!-- ═══════════ HEADER ═══════════ -->
+    <header class="header">
+        <div class="brand"><span class="brand-icon">⚡</span>AUCTION ARENA</div>
+        <div class="header-pills">
+            <div class="pill" id="chatToggleBtn" onclick="toggleChat()" style="cursor: pointer; border-color: var(--gold); background: rgba(255,215,0,0.1); margin-right: 15px;" title="Toggle Chat">
+                💬 <span class="pv" style="color: var(--gold); font-weight: 800; font-size: 13px;">CHAT</span>
+            </div>
+            <div class="pill" style="border-color: var(--cyan); background: rgba(0,212,255,0.1);">ROOM <span class="pv" id="hRoomCode" style="color: var(--cyan); font-weight: 800; font-size: 16px; letter-spacing: 2px;">---</span></div>
+            <div class="live-badge" id="liveBadge">
+                <div class="live-dot"></div>LIVE
+            </div>
+            <div class="pill">SOLD <span class="pv" id="hSold">0</span></div>
+            <div class="pill">REMAINING <span class="pv" id="hRemain">0</span></div>
+            <div class="pill">TEAMS <span class="pv" id="hTeams">0</span></div>
+        </div>
+    </header>
+
+    <!-- ═══════════ WORKSPACE ═══════════ -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeAllPanels()"></div>
+    <div class="workspace" id="mainWorkspace">
+
+        <!-- ▌LEFT: Auctioneer Panel ▐ -->
+        <div class="panel panel-left" id="panelLeft">
+            <div class="panel-head" style="display:flex; justify-content:space-between; align-items:center;">
+                <div><div class="panel-head-dot"></div>AUCTIONEER PANEL</div>
+                <div>
+                    <button onclick="toggleLeftPanel()" class="hide-desktop-btn" style="background:transparent; color:var(--cyan); border:1px solid var(--cyan); padding:2px 8px; border-radius:12px; font-weight:bold; font-size:9px; cursor:pointer;">◀ HIDE</button>
+                    <button onclick="toggleLeftPanel()" class="close-mobile-btn" style="display:none;">✕ CLOSE</button>
+                </div>
+            </div>
+
+            <!-- Upload -->
+            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📊</div>
+                <p>Drag & drop or click to upload<br><strong style="color:var(--gold)">Excel (.xlsx) or CSV</strong>
+                    file</p>
+                <div class="upload-btn-inner">BROWSE FILE</div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+            </div>
+            
+            <button class="add-team-btn" onclick="fetchBuiltInExcel()" style="margin-top: 10px; margin-bottom: 15px; width: 100%; background: var(--cyan); color: var(--bg-dark); font-weight: 800; border-radius: 8px;">📥 IMPORT IPL 2025 EXCEL</button>
+
+            <!-- Format hint -->
+            <div class="fmt-hint">
+                <strong>Excel columns (flexible):</strong> Name · Role · Country · Age · BasePrice · Matches · Runs ·
+                Wickets · Average · StrikeRate · Economy
+                <br><strong>Roles:</strong> BAT / BOWL / ALL / WK
+            </div>
+
+            <!-- Filter -->
+            <div class="filter-tabs">
+                <button class="ftab on" onclick="setFilter('ALL',this)">ALL</button>
+                <button class="ftab" onclick="setFilter('BAT',this)">BAT</button>
+                <button class="ftab" onclick="setFilter('BOWL',this)">BOWL</button>
+                <button class="ftab" onclick="setFilter('ALL-R',this)">AR</button>
+                <button class="ftab" onclick="setFilter('WK',this)">WK</button>
+                <button class="ftab unsold-tab" onclick="setFilter('UNSOLD',this)">UNSOLD</button>
+            </div>
+
+            <!-- Search -->
+            <div class="search-wrap">
+                <input class="search-in" id="searchIn" placeholder="🔍  Search player…" oninput="doSearch(this.value)">
+            </div>
+
+            <!-- Player list -->
+            <div class="plist" id="pList">
+                <div class="no-msg">
+                    <div class="ni">📁</div>Upload a player list to begin
+                </div>
+            </div>
+
+            <button class="start-btn" id="startBtn" onclick="startAuction()" disabled>🔨 PUT IN AUCTION</button>
+        </div>
+
+        <!-- ▌MIDDLE: Stage ▐ -->
+        <div class="stage" id="stage">
+            <button id="floatingShowBtnLeft" onclick="toggleLeftPanel()" style="display:none; position:absolute; top:12px; left:12px; z-index:10; background:var(--cyan); color:#000; border:none; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:10px; cursor:pointer; box-shadow:0 0 10px rgba(0,212,255,0.4);">▶ SHOW CONTROLS</button>
+            <button id="floatingShowBtnRight" onclick="toggleRightPanel()" style="display:none; position:absolute; top:12px; right:12px; z-index:10; background:var(--cyan); color:#000; border:none; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:10px; cursor:pointer; box-shadow:0 0 10px rgba(0,212,255,0.4);">◀ SHOW TEAMS</button>
+            <div class="spotlight" id="spotlight"></div>
+
+            <!-- Idle -->
+            <div class="idle" id="idleMsg">
+                <div class="idle-icon">🏏</div>
+                <div class="idle-title">AWAITING AUCTION</div>
+                <div class="idle-sub">Select a player from the panel &amp; click PUT IN AUCTION</div>
+            </div>
+
+            <!-- Active auction -->
+            <div class="ac-wrap" id="acWrap">
+                <div class="auction-status-lbl" id="aStatus">● BIDDING OPEN</div>
+
+                <div class="pc-main" id="pcMain">
+                    <div class="card-shimmer"></div>
+
+                    <div class="card-top">
+                        <div class="card-num" id="cNum">#1</div>
+                        <div class="card-role-lbl rb-bat" id="cRole">BATSMAN</div>
+                    </div>
+
+                    <div class="card-body-row">
+                        <div class="av-lg" id="cAvatar">
+                            <div class="av-ring"></div>
+                            <span id="cAvatarTxt">AB</span>
+                        </div>
+                        <div>
+                            <div class="pname-lg" id="cName">PLAYER NAME</div>
+                            <div class="pcountry" id="cCountry">🌍 COUNTRY</div>
+                            <div class="page" id="cAge">Age: —</div>
+                            <div class="pbase">BASE PRICE: <span class="pbase-val" id="cBase">&#8377;0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid" id="statsContainer">
+                        <!-- Dynamically populated based on role -->
+                    </div>
+
+                    <div class="bid-row">
+                        <div>
+                            <div class="cur-bid-lbl">CURRENT BID</div>
+                            <div class="cur-bid-amt" id="curBidAmt">&#8377;0</div>
+                            <div class="timer" id="timerEl" style="display:none;"></div>
+                        </div>
+                        <div>
+                            <div class="hb-lbl">HIGHEST BIDDER</div>
+                            <div class="hb-name" id="hbName">— NONE —</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Bidding controls -->
+                <div class="bid-controls">
+                    <div class="bc-row">
+                        <select class="team-sel" id="teamSel">
+                            <option value="">— Select Bidding Team —</option>
+                        </select>
+                        <input type="number" class="bid-num-in" id="bidIn" placeholder="Enter amount">
+                        <button class="place-bid-btn" onclick="placeBid()">BID</button>
+                    </div>
+                    <div class="incr-row">
+                        <button class="incr-btn" onclick="incr(100000)">+1L</button>
+                        <button class="incr-btn" onclick="incr(500000)">+5L</button>
+                        <button class="incr-btn" onclick="incr(1000000)">+10L</button>
+                        <button class="incr-btn" onclick="incr(2500000)">+25L</button>
+                        <button class="incr-btn" onclick="incr(5000000)">+50L</button>
+                        <button class="incr-btn" onclick="incr(10000000)">+1Cr</button>
+                    </div>
+                    <div class="action-row">
+                        <button class="act-btn sold-act" onclick="markSold()">🔨 SOLD</button>
+                        <button class="act-btn unsold-act" onclick="markUnsold()">✖ UNSOLD</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stage-level sold overlay - shows independently of acWrap -->
+            <div class="stage-sold-ov" id="stageSoldOv">
+                <div class="sold-hammer">🔨</div>
+                <div class="sold-word">SOLD!</div>
+                <div class="sold-to-lbl">TO</div>
+                <div class="sold-to-team" id="stageSoldTeam" style="font-family:'Bebas Neue';font-size:32px;letter-spacing:3px;color:var(--cyan);">—</div>
+                <div class="sold-price-big" id="stageSoldPrice" style="font-family:'Bebas Neue';font-size:44px;letter-spacing:2px;color:var(--gold);">&#8377;0</div>
+            </div>
+
+        </div>
+
+        <!-- ▌RIGHT: Teams ▐ -->
+        <div class="panel panel-right">
+            <div class="panel-head" style="display:flex; justify-content:space-between; align-items:center;">
+                <button onclick="toggleRightPanel()" style="background:transparent; color:var(--cyan); border:1px solid var(--cyan); padding:2px 8px; border-radius:12px; font-weight:bold; font-size:9px; cursor:pointer; margin-right:8px;">HIDE ▶</button>
+                <div style="flex-grow:1; display:flex; align-items:center;"><div class="panel-head-dot"></div>TEAMS &amp; SQUADS</div>
+                <button onclick="evaluateSquads()" style="background:var(--gold); color:#000; border:none; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:10px; cursor:pointer;">🏆 RESULT</button>
+            </div>
+
+            <div class="teams-scroll" id="teamsScroll">
+                <div class="no-msg" style="padding-top:28px">
+                    <div class="ni">👥</div>Add teams to start bidding
+                </div>
+            </div>
+
+            <div class="add-team-sec">
+                <div class="add-team-row">
+                    <input class="add-in" id="tNameIn" placeholder="Team name…"
+                        onkeydown="if(event.key==='Enter')addTeam()">
+                    <input class="add-in budget-in" id="tBudgetIn" type="number" placeholder="Cr" value="100">
+                    <button class="add-team-btn" onclick="addTeam()">+ ADD</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ STATUS BAR ═══════════ -->
+    <div class="statusbar">
+        <div class="si">TOTAL <span class="sv" id="stTotal">0</span></div>
+        <div class="si">IN AUCTION <span class="sv" id="stLive">0</span></div>
+        <div class="si">SOLD <span class="sv" id="stSold">0</span></div>
+        <div class="si">UNSOLD <span class="sv" id="stUnsold">0</span></div>
+        <div class="si">TOTAL SPENT <span class="sv" id="stSpent">₹0</span></div>
+    </div>
+
+    <!-- View Playing 11 Modal -->
+    <div class="ai-modal-overlay" id="view11ModalOverlay">
+        <div class="ai-modal-content" style="max-width: 600px; padding: 25px;">
+            <div class="ai-modal-header" style="justify-content: space-between; margin-bottom: 20px;">
+                <div class="ai-modal-title" style="color: var(--green);">🏏 <span id="view11TeamName">TEAM</span> PLAYING 11</div>
+                <button onclick="document.getElementById('view11ModalOverlay').classList.remove('show')" style="background: transparent; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 10px;">✖</button>
+            </div>
+            <div class="ai-divider" style="background: linear-gradient(90deg, var(--green), transparent);"></div>
+            <div id="view11Container" style="display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow-y: auto; padding-right: 5px; margin-bottom: 20px;">
+                <!-- Filled by JS -->
+            </div>
+            
+            <div class="ai-modal-header" style="justify-content: space-between; margin-bottom: 10px;">
+                <div class="ai-modal-title" style="color: var(--cyan); font-size: 16px;">🪑 BENCH</div>
+            </div>
+            <div class="ai-divider" style="background: linear-gradient(90deg, var(--cyan), transparent);"></div>
+            <div id="viewBenchContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 30vh; overflow-y: auto; padding-right: 5px;">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Chat Widget -->
+    <div class="chat-widget collapsed" id="chatWidget">
+        <div class="chat-header" onclick="toggleChat()">
+            <span>💬 AUCTION CHAT</span>
+            <span id="chatToggleIcon">▲</span>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="chat-send-btn" onclick="sendChatMessage()">SEND</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- ═══════════ SCRIPT ═══════════ -->
+    <script>
+        /* ──────── SESSION & API INIT ──────── */
+        const API = '/api';
+
+        let lobbyId   = null;
+        let roomCode  = null;
+        let aucName   = 'Auctioneer';
+        let socket = null;
+        let maxSquadSize = 25;
+        let maxOverseas = 8;
+        let stateRestored = false;  // true once restoreLobbyState() finishes
+
+        async function loadLobbyFromRoomCode(code) {
+            if (!code) return null;
+            const res = await fetch(`${API}/lobby/room/${code}`, { cache: 'no-store' });
+            if (!res.ok) return null;
+            const json = await res.json();
+            return json.data || null;
+        }
+
+        // Read session set by login.html, with URL recovery after refresh.
+        (async function initSession() {
+            const raw = sessionStorage.getItem('ipl_session');
+            const urlRoomCode = new URLSearchParams(window.location.search).get('room');
+            let session = {};
+            try {
+                session = raw ? JSON.parse(raw) : {};
+            } catch(e) { console.warn('Session parse error', e); }
+
+            lobbyId  = session.lobbyId  || null;
+            roomCode = session.roomCode || urlRoomCode || null;
+            aucName  = session.name     || 'Auctioneer';
+
+            if (!lobbyId && roomCode) {
+                try {
+                    const lobby = await loadLobbyFromRoomCode(roomCode);
+                    if (lobby) {
+                        lobbyId = lobby._id;
+                        aucName = lobby.createdBy || aucName;
+                        sessionStorage.setItem('ipl_session', JSON.stringify({
+                            ...session,
+                            role: session.role || 'auctioneer',
+                            roomCode,
+                            name: aucName,
+                            lobbyId
+                        }));
+                    }
+                } catch(e) { console.warn('Could not recover lobby from room code', e); }
+            }
+
+            // Show room info in header
+            document.getElementById('hRoomCode').textContent = roomCode || '---';
+
+            // Restore state from MongoDB FIRST, then connect socket
+            // This ensures players/teams are loaded before any socket state_update fires
+            if (lobbyId) await restoreLobbyState();
+
+            // Initialize Socket.io connection (after restore so stateRestored=true)
+            initSocket();
+        })();
+
+        function initSocket() {
+            socket = io();
+            socket.on('connect', () => {
+                console.log('Connected to socket server');
+                if (lobbyId) {
+                    socket.emit('join_lobby', { lobbyId, roomCode, role: 'auctioneer' });
+                }
+            });
+
+            socket.on('state_update', (state) => {
+                console.log('Socket State Update:', state);
+                status = state.status || 'SETUP';
+                auctionSeq = state.auctionSeq || 0;
+                if (state.maxSquadSize) maxSquadSize = state.maxSquadSize;
+                if (state.maxOverseas) maxOverseas = state.maxOverseas;
+                
+                if (state.currentPlayer) {
+                    currentPlayer = state.currentPlayer;
+                }
+                
+                if (state.teams && state.teams.length > 0) {
+                    teams = normalizeTeamsList(state.teams).map(t => {
+                        const existing = teams.find(x => String(x.id) === String(t.localId || t.id));
+                        return {
+                            ...t, 
+                            id: t.localId || t.id,
+                            budget: t.budget < 1000 ? t.budget * 10000000 : t.budget,
+                            spent:  t.spent  < 1000 ? t.spent  * 10000000 : t.spent,
+                            owner:  t.owner || '',
+                            expanded: existing ? existing.expanded : false
+                        };
+                    });
+                } else if (stateRestored) {
+                    // Don't let an empty-teams state_update wipe our restored teams
+                }
+
+                // Only overwrite the player pool from socket if we get real data
+                // The socket strips the players array for bandwidth (see auctionSocket.js getCleanGame)
+                // So we only update players from state_update if the array is non-empty AND restore hasn't happened
+                if (state.players && state.players.length > 0) {
+                    players = state.players.map(p => ({
+                        ...p,
+                        id: p.localId
+                    }));
+                }
+                // else: keep existing players array intact (restored from DB or file upload)
+
+                const hasActiveCurrentPlayer = state.currentPlayer && state.currentPlayer.localId != null;
+                if (state.status !== 'LIVE' && !hasActiveCurrentPlayer && auctionLive) {
+                    auctionLive = false;
+                    curBid = 0;
+                    topBidder = null;
+                    document.getElementById('liveBadge').style.display = 'none';
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('startBtn').textContent = '🔨 PUT IN AUCTION';
+                }
+
+                if (state.status === 'LIVE' && hasActiveCurrentPlayer) {
+                    const cp = state.currentPlayer;
+                    
+                    // Dynamically scale basePrice and curBid from Lakhs to Rupees if stored in Lakhs
+                    if (cp.basePrice && cp.basePrice < 10000) {
+                        cp.basePrice = cp.basePrice * 100000;
+                    }
+                    if (cp.curBid && cp.curBid < 10000) {
+                        cp.curBid = cp.curBid * 100000;
+                    }
+                    
+                    curPlayer = players.find(p => String(p.localId || p.id) === String(cp.localId)) || cp;
+                    curBid = cp.curBid || 0;
+                    topBidder = teams.find(t => String(t.id) === String(cp.topBidder) || String(t.localId) === String(cp.topBidder)) || null;
+                    auctionLive = true;
+
+                    if (curPlayer?.name) {
+                        const [roleCls, , roleName] = roleMap[curPlayer.role] || roleMap.BAT;
+                        document.getElementById('cNum').textContent = `#${auctionSeq || 1}`;
+                        document.getElementById('cName').textContent = curPlayer.name.toUpperCase();
+                        document.getElementById('cCountry').textContent = `🌍 ${curPlayer.country || 'Unknown'}`;
+                        document.getElementById('cAge').textContent = `Age: ${curPlayer.age || '—'}`;
+                        document.getElementById('cBase').textContent = fmt(cp.basePrice || curPlayer.basePrice || 0);
+                        document.getElementById('cAvatarTxt').textContent = initials(curPlayer.name);
+                        document.getElementById('cRole').className = `card-role-lbl ${roleCls}`;
+                        document.getElementById('cRole').textContent = roleName;
+                        renderStatsGrid(curPlayer, 'statsContainer');
+                    }
+
+                    document.getElementById('curBidAmt').textContent = fmt(curBid);
+                    document.getElementById('hbName').textContent = topBidder ? topBidder.name : '— NONE —';
+                    document.getElementById('hbName').style.color = topBidder?.color || 'var(--cyan)';
+                    document.getElementById('aStatus').textContent = cp.biddingClosed ? '● BIDDING CLOSED' : '● BIDDING OPEN';
+                    document.getElementById('aStatus').className = 'auction-status-lbl bidding';
+                    document.getElementById('idleMsg').classList.add('gone');
+                    document.getElementById('acWrap').classList.add('on');
+                    document.getElementById('spotlight').classList.add('on');
+                    document.getElementById('liveBadge').style.display = cp.biddingClosed ? 'none' : 'flex';
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('startBtn').textContent = cp.biddingClosed ? '🔨 CLOSE PLAYER' : '🔨 AUCTION LIVE';
+                }
+                 
+                updateStats();
+                renderTeams();
+                syncTeamSel();
+                renderPList(document.getElementById('searchIn')?.value || '');
+            });
+
+            
+
+            socket.on('bid_placed', ({ teamLocalId, amount }) => {
+                toast(`New Bid: ₹${amount}Cr`);
+                triggerFlash();
+            });
+            
+            socket.on('player_sold', (data) => {
+                if (data.playerLocalId === curPlayer?.localId || data.playerLocalId === curPlayer?.id) {
+                    curPlayer.status = 'sold';
+                    curPlayer.soldTo = data.teamLocalId;
+                    curPlayer.soldPrice = data.amount;
+                }
+                
+                // Update local players array
+                const pIndex = players.findIndex(p => p.localId === data.playerLocalId || p.id === data.playerLocalId);
+                let pData = curPlayer;
+                if (pIndex !== -1) {
+                    players[pIndex].status = 'sold';
+                    players[pIndex].soldTo = data.teamLocalId;
+                    players[pIndex].soldPrice = data.amount;
+                    pData = players[pIndex];
+                }
+                
+                const topTeam = teams.find(t => String(t.id) === String(data.teamLocalId) || String(t.localId) === String(data.teamLocalId));
+                if (topTeam) {
+                    topTeam.spent += data.amount;
+                    if (!topTeam.players) topTeam.players = [];
+                    if (!topTeam.players.some(p => p.localId === data.playerLocalId)) {
+                        topTeam.players.push({
+                            localId: data.playerLocalId,
+                            name: pData?.name || data.player?.name || 'Player',
+                            role: pData?.role || data.player?.role || 'BAT',
+                            soldPrice: data.amount
+                        });
+                    }
+                }
+                
+                // Re-render data lists
+                renderTeams();
+                renderPList(document.getElementById('searchIn')?.value || '');
+                updateStats();
+
+                // Show sold overlay
+                document.getElementById('stageSoldPrice').textContent = fmt(data.amount);
+                if (topTeam) {
+                    document.getElementById('stageSoldTeam').textContent = topTeam.name;
+                    document.getElementById('stageSoldTeam').style.color = topTeam.color || 'var(--gold)';
+                }
+                document.getElementById('stageSoldOv').classList.add('show');
+                document.getElementById('aStatus').textContent = '✅ SOLD!';
+                document.getElementById('aStatus').className = 'auction-status-lbl sold-st';
+
+                launchConfetti();
+                toast(`✅ ${data.player?.name || pData?.name || 'Player'} SOLD to ${topTeam ? topTeam.name : 'a team'} for ${fmt(data.amount)}!`);
+
+                // Hide the ENTIRE player display card immediately and reset after 1.8s
+                // Step 1 (now): hide the big acWrap, show sold overlay on top
+                document.getElementById('acWrap').classList.remove('on');
+                document.getElementById('spotlight').classList.remove('on');
+                document.getElementById('idleMsg').classList.remove('gone');
+
+                // Step 2 (after brief moment): fully close and reset
+                if (soldTimeout) clearTimeout(soldTimeout);
+                soldTimeout = setTimeout(closeAuction, 1800);
+            });
+
+            socket.on('player_unsold', (data) => {
+                if (data.playerLocalId === curPlayer?.localId || data.playerLocalId === curPlayer?.id) {
+                    curPlayer.status = 'unsold';
+                }
+                
+                // Update local players array
+                const pIndex = players.findIndex(p => p.localId === data.playerLocalId || p.id === data.playerLocalId);
+                if (pIndex !== -1) {
+                    players[pIndex].status = 'unsold';
+                }
+                renderPList(document.getElementById('searchIn')?.value || '');
+                updateStats();
+                
+                document.getElementById('aStatus').textContent = '❌ UNSOLD';
+                document.getElementById('aStatus').className = 'auction-status-lbl unsold-st';
+                toast(`❌ ${curPlayer?.name || 'Player'} went UNSOLD.`);
+                
+                if (soldTimeout) clearTimeout(soldTimeout);
+                soldTimeout = setTimeout(closeAuction, 3000);
+            });
+
+            socket.on('sold_countdown_tick', ({ timeLeft }) => {
+                const actBtn = document.querySelector('.sold-act');
+                if (actBtn) actBtn.textContent = `🔨 SELLING IN ${timeLeft}...`;
+            });
+
+            socket.on('sold_countdown_cancelled', () => {
+                const actBtn = document.querySelector('.sold-act');
+                if (actBtn) actBtn.textContent = `🔨 SOLD`;
+            });
+
+            socket.on('sale_failed', ({ message }) => {
+                const actBtn = document.querySelector('.sold-act');
+                if (actBtn) {
+                    actBtn.disabled = false;
+                    actBtn.textContent = 'SOLD';
+                }
+                auctionLive = true;
+                toast(message || 'Could not mark player as sold. Please try again.');
+            });
+
+            socket.on('player_joined_toast', (data) => {
+                toast(`👤 ${data.playerName} has joined as ${data.teamName} owner!`);
+                // Trigger a small effect to highlight the join
+                const teamCard = Array.from(document.querySelectorAll('.tc-name')).find(el => el.textContent.includes(data.teamName));
+                if (teamCard) {
+                    teamCard.closest('.team-card').style.animation = 'pulse-border 1s 3';
+                }
+            });
+
+            socket.on('chat_message', appendChatMessage);
+        }
+
+        async function restoreLobbyState() {
+            try {
+                const res  = await fetch(`${API}/lobby/${lobbyId}/state`);
+                if (!res.ok) return;
+                const json = await res.json();
+                const data = json.data;
+                maxSquadSize = data.maxSquadSize || 25;
+                maxOverseas = data.maxOverseas || 8;
+                // Restore teams
+                if (data.teams && data.teams.length) {
+                    teams = normalizeTeamsList(data.teams).map(t => ({
+                        id: t.localId, name: t.name,
+                        budget: t.budget < 1000 ? t.budget * 10000000 : t.budget,
+                        spent:  t.spent  < 1000 ? t.spent  * 10000000 : t.spent,
+                        color: t.color, players: t.players || [], expanded: false,
+                        owner: t.owner || 'AI'
+                    }));
+                    renderTeams(); syncTeamSel(); updateStats();
+                }
+                // Restore players
+                if (data.players && data.players.length) {
+                    players = data.players.map(p => ({
+                        id: p.localId, name: p.name, country: p.country,
+                        age: p.age, role: p.role, basePrice: p.basePrice,
+                        matches: p.matches, innings: p.innings, runs: p.runs,
+                        balls: p.balls, highest: p.highest, notOut: p.notOut,
+                        fours: p.fours, sixes: p.sixes, ducks: p.ducks,
+                        fifties: p.fifties, hundreds: p.hundreds, wickets: p.wickets,
+                        maidens: p.maidens, bbi: p.bbi, avg: p.avg,
+                        sr: p.sr, economy: p.economy,
+                        status: p.status, soldTo: p.soldTo, soldPrice: p.soldPrice
+                    }));
+                    renderPList(); updateStats();
+                    const uploadZone = document.getElementById('uploadZone');
+                    uploadZone.onclick = null;
+                    uploadZone.classList.add('loaded');
+                    uploadZone.innerHTML = `<div class="upload-icon">✅</div>
+                        <p><strong style="color:var(--green)">${players.length} players (restored)</strong></p>
+                        <div class="upload-btn-inner" onclick="document.getElementById('fileInput').click();event.stopPropagation()">RELOAD</div>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">`;
+                    document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) parseFile(e.target.files[0]); });
+                }
+                auctionSeq = data.auctionSeq || 0;
+                stateRestored = true;  // mark flag so state_update won't wipe our data
+                toast(`✅ Lobby restored — ${players.length} players, ${teams.length} teams`);
+            } catch(e) { console.warn('Could not restore lobby state', e); }
+        }
+
+        /* ──────── STATE ──────── */
+        let players = [];
+        let teams = [];
+        let selId = null;
+        let curPlayer = null;
+        let curBid = 0;
+        let topBidder = null;
+        let auctionLive = false;
+        let filterRole = 'ALL';
+        let auctionSeq = 0;
+        let playerSyncPromise = Promise.resolve();
+
+        const TEAM_COLORS = [
+            '#FF3D5A', '#00D4FF', '#FFD700', '#00FF99', '#FF9F40',
+            '#C084FC', '#2DD4BF', '#F472B6', '#A3E635', '#FB923C'
+        ];
+
+        /* ──────── FORMAT ──────── */
+        function fmt(v) {
+            if (!v || v === 0) return '\u20B90';
+            if (v >= 10000000) return '\u20B9' + (v / 10000000).toFixed(2).replace(/\.?0+$/, '') + ' Cr';
+            if (v >= 100000) return '\u20B9' + (v / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+            return '\u20B9' + v.toLocaleString();
+        }
+        function normalizeTeamsList(list = []) {
+            const canonicalIds = new Set(list
+                .map(t => String(t.localId || t.id || '').toUpperCase())
+                .filter(id => id && id.length <= 5));
+            const seenIds = new Set();
+
+            return list.filter(t => {
+                const id = String(t.localId || t.id || '').toUpperCase();
+                const name = String(t.name || '').toUpperCase();
+                if (!id || seenIds.has(id)) return false;
+                if (canonicalIds.has(name) && id !== name) return false;
+                seenIds.add(id);
+                return true;
+            });
+        }
+        function initials(n) { return n.split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(); }
+
+        /* ──────── ROLE HELPERS ──────── */
+        const roleMap = {
+            BAT: ['rb-bat', 'BAT', 'BATSMAN'],
+            BOWL: ['rb-bowl', 'BOWL', 'BOWLER'],
+            'ALL-R': ['rb-all', 'AR', 'ALL-ROUNDER'],
+            WK: ['rb-wk', 'WK', 'WICKET-KEEPER'],
+        };
+        function getRole(raw = '') {
+            const r = raw.toString().toUpperCase();
+            if (r.includes('WK') || r.includes('KEEP') || r.includes('WICK')) return 'WK';
+            if (r.includes('ALL') || r.includes('AR') || r.includes('ROUND')) return 'ALL-R';
+            if (r.includes('BOWL') || r.includes('FAST') || r.includes('SPIN') || r.includes('PACE') || r.includes('SEAM')) return 'BOWL';
+            return 'BAT';
+        }
+
+        /* ──────── FILE UPLOAD ──────── */
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-active'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-active'));
+        uploadZone.addEventListener('drop', e => {
+            e.preventDefault(); uploadZone.classList.remove('drag-active');
+            if (e.dataTransfer.files[0]) parseFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => { if (e.target.files[0]) parseFile(e.target.files[0]); });
+
+        async function fetchBuiltInExcel() {
+            toast('Fetching IPL 2025 Mega Auction Data...');
+            try {
+                const res = await fetch('/IPL_2025_Mega_Auction_Players.xlsx');
+                if (!res.ok) throw new Error('File not found');
+                const blob = await res.blob();
+                const file = new File([blob], 'IPL_2025_Mega_Auction_Players.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                parseFile(file);
+            } catch (e) {
+                toast('❌ Error fetching built-in Excel: ' + e.message);
+                console.error(e);
+            }
+        }
+
+        function parseFile(file) {
+            const r = new FileReader();
+            r.onload = ev => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+                    if (!rows.length) { toast('❌ Empty file or wrong format'); return; }
+
+                    const col = (row, ...names) => {
+                        const keys = Object.keys(row);
+                        for (const nm of names)
+                            for (const k of keys)
+                                if (k.toLowerCase().replace(/[\s_]/g, '').includes(nm.toLowerCase())) return row[k];
+                        return '';
+                    };
+
+                    players = rows.map((row, i) => {
+                        let bp = parseFloat(col(row, 'baseprice', 'base', 'price', 'value') || 0);
+                        if (isNaN(bp)) bp = 0;
+                        return {
+                            id: i,
+                            name: (col(row, 'name', 'player', 'fullname') || `Player ${i + 1}`).toString().trim(),
+                            country: (col(row, 'country', 'nation', 'nationality') || '—').toString(),
+                            age: (col(row, 'age') || '—').toString(),
+                            role: getRole(col(row, 'role', 'type', 'category', 'position')),
+                            basePrice: bp < 200 ? bp * 100000 : bp,   // if small number assume Lakhs
+                            matches: (col(row, 'matches', 'mat', 'm', 'games') || '—').toString(),
+                            innings: (col(row, 'innings', 'inns', 'inn') || '—').toString(),
+                            runs: (col(row, 'runs', 'run', 'r') || '—').toString(),
+                            balls: (col(row, 'balls', 'b', 'bf') || '—').toString(),
+                            highest: (col(row, 'highest', 'hs', 'high') || '—').toString(),
+                            notOut: (col(row, 'notout', 'no') || '—').toString(),
+                            fours: (col(row, 'fours', '4s') || '—').toString(),
+                            sixes: (col(row, 'sixes', '6s') || '—').toString(),
+                            ducks: (col(row, 'ducks', '0s') || '—').toString(),
+                            fifties: (col(row, 'fifties', '50s', '50') || '—').toString(),
+                            hundreds: (col(row, 'hundreds', '100s', '100') || '—').toString(),
+                            wickets: (col(row, 'wickets', 'wicket', 'wkt', 'w') || '—').toString(),
+                            maidens: (col(row, 'maidens', 'mdns') || '—').toString(),
+                            bbi: (col(row, 'bbi', 'best', 'fig') || '—').toString(),
+                            avg: (col(row, 'average', 'avg', 'ba') || '—').toString(),
+                            sr: (col(row, 'strike', 'sr', 'strikerate') || '—').toString(),
+                            economy: (col(row, 'economy', 'econ', 'eco', 'er') || '—').toString(),
+                            status: 'available',
+                            soldTo: null,
+                            soldPrice: 0,
+                        };
+                    });
+
+                    renderPList(); updateStats();
+                    uploadZone.classList.add('loaded');
+                    uploadZone.onclick = null;
+                    uploadZone.innerHTML = `
+        <div class="upload-icon">✅</div>
+        <p><strong style="color:var(--green)">${players.length} players loaded</strong><br>${file.name}</p>
+        <div class="upload-btn-inner" onclick="document.getElementById('fileInput').click();event.stopPropagation()">RELOAD</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">`;
+                    document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) parseFile(e.target.files[0]); });
+                    toast(`✅ ${players.length} players loaded!`);
+
+                    // Persist player pool to MongoDB
+                    if (lobbyId) {
+                        toast('Saving players to database...');
+                        playerSyncPromise = fetch(`${API}/lobby/${lobbyId}/players`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ players: players.map(p => ({
+                                localId: p.id, name: p.name, country: p.country,
+                                age: p.age, role: p.role, basePrice: p.basePrice,
+                                matches: p.matches, innings: p.innings, runs: p.runs,
+                                balls: p.balls, highest: p.highest, notOut: p.notOut,
+                                fours: p.fours, sixes: p.sixes, ducks: p.ducks,
+                                fifties: p.fifties, hundreds: p.hundreds, wickets: p.wickets,
+                                maidens: p.maidens, bbi: p.bbi, avg: p.avg,
+                                sr: p.sr, economy: p.economy, status: p.status
+                            })) })
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (!d.success) throw new Error(d.message || 'Unknown DB error');
+                            toast(`✅ ${players.length} players loaded & synced!`);
+                        })
+                        .catch(e => {
+                            console.error('Could not sync players to DB', e);
+                            toast('❌ Failed to save players to database!');
+                        });
+                    } else {
+                        toast(`✅ ${players.length} players loaded locally!`);
+                    }
+
+                } catch (err) { console.error(err); toast('❌ Could not parse file'); }
+            };
+            r.readAsArrayBuffer(file);
+        }
+
+        /* ──────── PLAYER LIST ──────── */
+        function renderPList(q = '') {
+            const wrap = document.getElementById('pList');
+            const qlo = q.toLowerCase();
+            const list = players.filter(p => {
+                const mq = !q || p.name.toLowerCase().includes(qlo) || p.country.toLowerCase().includes(qlo);
+                if (filterRole === 'UNSOLD') {
+                    return mq && p.status === 'unsold';
+                }
+                const isAvailable = !p.status || p.status === 'available' || p.status === 'in-auction';
+                const mr = filterRole === 'ALL' || p.role === filterRole;
+                return mq && mr && isAvailable;
+            });
+            if (!list.length) {
+                wrap.innerHTML = `<div class="no-msg"><div class="ni">🔍</div>No players found</div>`;
+                return;
+            }
+            wrap.innerHTML = list.map(p => {
+                const [cls, ,] = roleMap[p.role] || roleMap.BAT;
+                const icon = p.status === 'sold' ? '✅' : p.status === 'unsold' ? '❌' : p.status === 'in-auction' ? '🔨' : '';
+                const stCls = p.status === 'sold' ? 'p-sold' : p.status === 'unsold' ? 'p-unsold' : p.status === 'in-auction' ? 'p-auctioning' : '';
+                const isOverseas = p.country && !['India', 'IND', '—', 'india', 'ind'].includes(p.country.trim());
+                const osIcon = isOverseas ? ' ✈️' : '';
+                return `<div class="pitem ${stCls} ${selId === p.id ? 'sel' : ''}" onclick="selPlayer(${p.id})">
+      <div class="av-sm">${icon || initials(p.name)}</div>
+      <div class="pinfo-sm">
+        <div class="pname-sm">${p.name}${osIcon}</div>
+        <div class="pmeta-sm">${p.country} · ${fmt(p.basePrice)}</div>
+      </div>
+      <span class="role-badge ${cls}">${roleMap[p.role]?.[1] || '?'}</span>
+    </div>`;
+            }).join('');
+        }
+
+        async function selPlayer(id) {
+            if (auctionLive) { toast('⚠️ Auction in progress'); return; }
+            selId = id;
+            renderPList(document.getElementById('searchIn').value);
+            document.getElementById('startBtn').disabled = false;
+            
+            const p = players.find(x => x.id === id);
+            
+            // Populate right sidebar with whatever stats we have currently
+            renderStatsGrid(p, 'statsContainer');
+            
+            // Check if we need to fetch stats. If extended stats like 'highest' or 'fifties' are missing, fetch them!
+            const needsStats = !p.matches || p.matches === '—' || String(p.matches) === '0' || !p.highest || p.highest === '—';
+            
+            if (p && needsStats) {
+                const startBtn = document.getElementById('startBtn');
+                if (startBtn) {
+                    startBtn.disabled = true;
+                    startBtn.textContent = '⏳ FETCHING AI STATS...';
+                }
+                toast(`Fetching IPL stats for ${p.name} from Cricbuzz/ESPN...`);
+                try {
+                    const res = await fetch(`${API}/ai/fetch-stats`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ playerName: p.name })
+                    });
+                    const json = await res.json();
+                    if (json.success && json.data) {
+                        const s = json.data;
+                        p.matches = (s.matches && s.matches !== '0' && s.matches !== 0) ? s.matches : p.matches;
+                        p.innings = (s.innings && s.innings !== '0' && s.innings !== 0) ? s.innings : p.innings;
+                        p.runs = (s.runs && s.runs !== '0' && s.runs !== 0) ? s.runs : p.runs;
+                        p.balls = (s.balls && s.balls !== '0' && s.balls !== 0) ? s.balls : p.balls;
+                        p.highest = (s.highest && s.highest !== '0' && s.highest !== 0) ? s.highest : p.highest;
+                        p.notOut = (s.notOut && s.notOut !== '0' && s.notOut !== 0) ? s.notOut : p.notOut;
+                        p.fours = (s.fours && s.fours !== '0' && s.fours !== 0) ? s.fours : p.fours;
+                        p.sixes = (s.sixes && s.sixes !== '0' && s.sixes !== 0) ? s.sixes : p.sixes;
+                        p.ducks = (s.ducks && s.ducks !== '0' && s.ducks !== 0) ? s.ducks : p.ducks;
+                        p.fifties = (s.fifties && s.fifties !== '0' && s.fifties !== 0) ? s.fifties : p.fifties;
+                        p.hundreds = (s.hundreds && s.hundreds !== '0' && s.hundreds !== 0) ? s.hundreds : p.hundreds;
+                        p.wickets = (s.wickets && s.wickets !== '0' && s.wickets !== 0) ? s.wickets : p.wickets;
+                        p.maidens = (s.maidens && s.maidens !== '0' && s.maidens !== 0) ? s.maidens : p.maidens;
+                        p.bbi = (s.bbi && s.bbi !== '0/0' && s.bbi !== '0') ? s.bbi : p.bbi;
+                        p.avg = (s.avg && s.avg !== '0' && s.avg !== 0) ? s.avg : p.avg;
+                        p.sr = (s.sr && s.sr !== '0' && s.sr !== 0) ? s.sr : p.sr;
+                        p.economy = (s.economy && s.economy !== '0' && s.economy !== 0) ? s.economy : p.economy;
+                        
+                        // Update UI again if the user hasn't clicked away
+                        if (selId === id) {
+                            renderStatsGrid(p, 'statsContainer');
+                            if (startBtn) {
+                                startBtn.disabled = false;
+                                startBtn.textContent = '🔨 PUT IN AUCTION';
+                            }
+                        }
+                        
+                        toast(`✅ Stats updated for ${p.name}!`);
+                        if (lobbyId) {
+                            fetch(`${API}/lobby/${lobbyId}/players`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ players: players.map(pl => ({
+                                    localId: pl.id, name: pl.name, country: pl.country,
+                                    age: pl.age, role: pl.role, basePrice: pl.basePrice,
+                                    matches: pl.matches, innings: pl.innings, runs: pl.runs,
+                                    balls: pl.balls, highest: pl.highest, notOut: pl.notOut,
+                                    fours: pl.fours, sixes: pl.sixes, ducks: pl.ducks,
+                                    fifties: pl.fifties, hundreds: pl.hundreds,
+                                    wickets: pl.wickets, maidens: pl.maidens, bbi: pl.bbi,
+                                    avg: pl.avg, sr: pl.sr, economy: pl.economy,
+                                    status: pl.status
+                                })) })
+                            }).catch(e => console.warn('Could not sync players to DB', e));
+                        }
+                    } else {
+                        toast(`❌ Failed to fetch stats: ${json.message || 'Unknown error'}`);
+                        if (selId === id && document.getElementById('startBtn')) {
+                            document.getElementById('startBtn').disabled = false;
+                            document.getElementById('startBtn').textContent = '🔨 PUT IN AUCTION';
+                        }
+                    }
+                } catch (err) {
+                    toast(`❌ Error fetching stats for ${p.name}`);
+                    console.error(err);
+                    if (selId === id && document.getElementById('startBtn')) {
+                        document.getElementById('startBtn').disabled = false;
+                        document.getElementById('startBtn').textContent = '🔨 PUT IN AUCTION';
+                    }
+                }
+            }
+        }
+        function doSearch(v) { renderPList(v); }
+        function setFilter(role, btn) {
+            filterRole = role;
+            document.querySelectorAll('.ftab').forEach(b => b.classList.remove('on'));
+            btn.classList.add('on');
+            renderPList(document.getElementById('searchIn').value);
+        }
+
+        /* ──────── TEAMS ──────── */
+        async function addTeam() {
+            const nm = document.getElementById('tNameIn').value.trim();
+            const bv = parseFloat(document.getElementById('tBudgetIn').value || '100');
+            if (!nm) { toast('❌ Enter team name'); return; }
+            if (teams.find(t => t.name.toLowerCase() === nm.toLowerCase())) { toast('❌ Team already exists'); return; }
+            const newTeam = {
+                id: Date.now(), name: nm.toUpperCase(),
+                budget: bv * 10000000, spent: 0,
+                color: TEAM_COLORS[teams.length % TEAM_COLORS.length],
+                players: [], expanded: false, owner: 'AI'
+            };
+            teams.push(newTeam);
+            document.getElementById('tNameIn').value = '';
+            renderTeams(); syncTeamSel(); updateStats();
+            toast(`✅ ${nm.toUpperCase()} added`);
+
+            // Persist to MongoDB
+            if (lobbyId) {
+                try {
+                    await fetch(`${API}/lobby/${lobbyId}/teams`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            localId: newTeam.id,
+                            name:    newTeam.name,
+                            budget:  newTeam.budget,
+                            color:   newTeam.color,
+                            owner:   newTeam.owner
+                        })
+                    });
+                } catch(e) { console.warn('Could not sync team to DB', e); }
+            }
+        }
+
+        function renderTeams() {
+            const c = document.getElementById('teamsScroll');
+            if (!teams.length) {
+                c.innerHTML = `<div class="no-msg" style="padding-top:28px"><div class="ni">👥</div>Add teams to start bidding</div>`;
+                return;
+            }
+            c.innerHTML = teams.map(t => {
+                const rem = t.budget - t.spent;
+                const pct = Math.min(100, (t.spent / t.budget) * 100);
+                const leading = topBidder && topBidder.id === t.id;
+                const playing11 = t.playing11 || [];
+                const submittedText = playing11.length === 11 ? `<button onclick="viewPlaying11('${t.id}'); event.stopPropagation();" style="background:var(--green); color:#000; border:none; padding:2px 5px; border-radius:3px; font-size:9px; margin-left:5px; cursor:pointer; font-weight:bold;">XI SUBMITTED 📋</button>` : '';
+                return `<div class="team-card ${leading ? 'leading' : ''}" id="tc-${t.id}">
+      <div class="team-hdr" onclick="toggleTeam('${t.id}')">
+        <div class="tc-dot" style="background:${t.color}"></div>
+        <div class="tc-name" style="color:${t.color}; display:flex; flex-direction:column; justify-content:center;">
+            <div style="display:flex; align-items:center;">
+                ${t.name} ${submittedText}
+            </div>
+            ${t.owner ? `<div style="font-size:11px;color:var(--fg-dim);text-transform:none;letter-spacing:1px;margin-top:2px;">👤 ${t.owner}</div>` : ''}
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end;">
+            <span class="tc-count">${t.players.length}/${maxSquadSize}</span>
+            <span style="font-size:10px; color:var(--gold);">OS: ${t.players.filter(p => {
+                const fullP = allPlayers.find(ap => ap.localId === p.localId);
+                return fullP && fullP.country && !['India', 'IND', '—'].includes(fullP.country);
+            }).length}/${maxOverseas}</span>
+        </div>
+        <div class="tc-budget">${fmt(rem)}</div>
+      </div>
+      <div class="bbar-wrap">
+        <div class="bbar"><div class="bbar-fill" style="width:${pct}%;background:linear-gradient(90deg,${t.color}55,${t.color})"></div></div>
+      </div>
+      <div class="team-players-list ${t.expanded ? 'open' : ''}" id="tpl-${t.id}">
+        ${t.players.length ? t.players.map(p => {
+          const isP11 = playing11.includes(p.localId);
+          return `
+          <div class="tp-row" style="${isP11 ? 'background: rgba(0,255,153,0.1); border-left: 2px solid var(--green); padding-left: 3px;' : ''}">
+            <span style="font-size:9px;color:var(--fg-dim)">${roleMap[p.role]?.[1] || '?'}</span>
+            <span class="tp-name" style="${isP11 ? 'color: var(--green); font-weight: bold;' : ''}">${p.name} ${isP11 ? '<span style="font-size:8px; background:var(--green); color:#000; padding:1px 3px; border-radius:2px; margin-left:3px;">XI</span>' : ''}</span>
+            <span class="tp-price">${fmt(p.soldPrice)}</span>
+          </div>`
+        }).join('') : `<div style="font-size:11px;color:var(--fg-dim);padding:5px 7px">No players yet</div>`}
+      </div>
+    </div>`;
+            }).join('');
+            document.getElementById('hTeams').textContent = teams.length;
+        }
+        function toggleTeam(id) {
+            const t = teams.find(t => t.id === id);
+            if (t) { t.expanded = !t.expanded; renderTeams(); }
+        }
+
+        function viewPlaying11(teamId) {
+            const t = teams.find(t => t.id === teamId);
+            if (!t || !t.playing11 || t.playing11.length === 0) return;
+
+            document.getElementById('view11TeamName').textContent = t.name;
+            const container11 = document.getElementById('view11Container');
+            const containerBench = document.getElementById('viewBenchContainer');
+            
+            const p11 = t.players.filter(p => t.playing11.includes(p.localId));
+            const bench = t.players.filter(p => !t.playing11.includes(p.localId));
+
+            const makeRow = (p, isP11) => {
+                const fullP = allPlayers.find(ap => ap.localId === p.localId);
+                const isOs = fullP && fullP.country && !['India', 'IND', '—'].includes(fullP.country);
+                const osIcon = isOs ? ' ✈️' : '';
+                return `
+                <div style="display:flex; justify-content:space-between; align-items:center; background: ${isP11 ? 'rgba(0,255,153,0.05)' : 'rgba(0,212,255,0.05)'}; border: 1px solid ${isP11 ? 'rgba(0,255,153,0.3)' : 'rgba(0,212,255,0.3)'}; padding: 10px 15px; border-radius: 6px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="role-badge ${roleMap[p.role]?.[0] || 'rb-bat'}" style="margin: 0; padding: 2px 6px;">${roleMap[p.role]?.[1] || '?'}</span>
+                        <div style="color: #fff; font-weight: 600;">${p.name}${osIcon}</div>
+                    </div>
+                    <div style="color: ${isP11 ? 'var(--green)' : 'var(--cyan)'}; font-size: 14px; font-weight: bold;">${fmt(p.soldPrice)}</div>
+                </div>
+            `};
+            
+            container11.innerHTML = p11.map(p => makeRow(p, true)).join('');
+            containerBench.innerHTML = bench.map(p => makeRow(p, false)).join('');
+
+            document.getElementById('view11ModalOverlay').classList.add('show');
+        }
+
+        let isLeftHidden = false;
+        let isRightHidden = false;
+
+        function updateWorkspaceGrid() {
+            const ws = document.getElementById('mainWorkspace');
+            const leftW = isLeftHidden ? '0px' : '290px';
+            const rightW = isRightHidden ? '0px' : '290px';
+            ws.style.gridTemplateColumns = `${leftW} 1fr ${rightW}`;
+        }
+
+        function checkMobileOverlay() {
+            const leftOpen = document.getElementById('panelLeft').classList.contains('show-mobile');
+            const rightOpen = document.getElementById('panelRight').classList.contains('show-mobile');
+            if (leftOpen || rightOpen) {
+                document.getElementById('mobileOverlay').classList.add('show');
+            } else {
+                document.getElementById('mobileOverlay').classList.remove('show');
+            }
+        }
+
+        function closeAllPanels() {
+            document.getElementById('panelLeft').classList.remove('show-mobile');
+            document.getElementById('panelRight').classList.remove('show-mobile');
+            checkMobileOverlay();
+        }
+
+        function toggleLeftPanel() {
+            if (window.innerWidth <= 900) {
+                document.getElementById('panelLeft').classList.toggle('show-mobile');
+                checkMobileOverlay();
+            } else {
+                isLeftHidden = !isLeftHidden;
+                updateWorkspaceGrid();
+                document.getElementById('floatingShowBtnLeft').style.display = isLeftHidden ? 'block' : 'none';
+            }
+        }
+
+        function toggleRightPanel() {
+            if (window.innerWidth <= 900) {
+                document.getElementById('panelRight').classList.toggle('show-mobile');
+                checkMobileOverlay();
+            } else {
+                isRightHidden = !isRightHidden;
+                updateWorkspaceGrid();
+                document.getElementById('floatingShowBtnRight').style.display = isRightHidden ? 'block' : 'none';
+            }
+        }
+        
+        // Handle window resize to reset states if crossing breakpoint
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 900) {
+                closeAllPanels();
+                document.querySelectorAll('.close-mobile-btn').forEach(b => b.style.display = 'none');
+                document.querySelectorAll('.hide-desktop-btn').forEach(b => b.style.display = 'inline-block');
+            } else {
+                document.querySelectorAll('.close-mobile-btn').forEach(b => b.style.display = 'inline-block');
+                document.querySelectorAll('.hide-desktop-btn').forEach(b => b.style.display = 'none');
+            }
+        });
+        
+        // Initial button setup
+        if (window.innerWidth <= 900) {
+            document.querySelectorAll('.close-mobile-btn').forEach(b => b.style.display = 'inline-block');
+            document.querySelectorAll('.hide-desktop-btn').forEach(b => b.style.display = 'none');
+        }
+
+        async function evaluateSquads() {
+            const submittedTeams = teams.filter(t => t.playing11 && t.playing11.length === 11);
+            if (submittedTeams.length === 0) {
+                showToast("No teams have submitted a full Playing 11 yet!", "error");
+                return;
+            }
+
+            window.open('results.html?id=' + lobbyId, '_blank');
+
+            const evalPayload = submittedTeams.map(t => {
+                return {
+                    name: t.name,
+                    budget: t.budget,
+                    spent: t.spent,
+                    playing11Data: t.players.filter(p => t.playing11.includes(p.localId))
+                };
+            });
+
+            try {
+                const response = await fetch('/api/ai/evaluate-squads', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ teams: evalPayload })
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.html) {
+                    socket.emit('broadcast_evaluation', { lobbyId, html: data.html });
+                } else {
+                    showToast("AI Evaluation failed", "error");
+                }
+            } catch (err) {
+                console.error("AI Evaluation error:", err);
+                showToast("Failed to contact AI evaluation server.", "error");
+            }
+        }
+
+        function syncTeamSel() {
+            const s = document.getElementById('teamSel');
+            const prev = s.value;
+            s.innerHTML = `<option value="">— Select Bidding Team —</option>` +
+                teams.map(t => `<option value="${t.id}" ${t.id == prev ? 'selected' : ''}>${t.name}${t.owner ? ` (${t.owner})` : ''}  (${fmt(t.budget - t.spent)} left)</option>`).join('');
+        }
+
+        /* ──────── AUCTION ──────── */
+        async function startAuction() {
+            if (selId === null) { toast('⚠️ Select a player'); return; }
+            if (!teams.length) { toast('⚠️ Add at least one team'); return; }
+            const p = players.find(x => x.id === selId);
+            if (!p || (p.status !== 'available' && p.status !== 'unsold')) { toast('⚠️ Player unavailable'); return; }
+
+            try {
+                await playerSyncPromise;
+            } catch(e) {
+                console.warn('Player sync did not complete before auction start', e);
+            }
+
+            // Emit to server
+            if (socket && lobbyId) {
+                socket.emit('start_auction', { lobbyId, player: p, playerLocalId: p.id, basePrice: p.basePrice });
+            }
+
+            curPlayer = p; p.status = 'in-auction';
+            curBid = p.basePrice; topBidder = null; auctionLive = true; auctionSeq++;
+            selId = null;
+
+            // Populate card
+            const [roleCls, , roleName] = roleMap[p.role] || roleMap.BAT;
+            document.getElementById('cNum').textContent = `#${auctionSeq}`;
+            const isOverseas = p.country && !['India', 'IND', '—', 'india', 'ind'].includes(p.country.trim());
+            const osIcon = isOverseas ? ' ✈️' : '';
+            document.getElementById('cName').textContent = p.name.toUpperCase() + osIcon;
+            document.getElementById('cCountry').textContent = `🌍 ${p.country}`;
+            document.getElementById('cAge').textContent = `Age: ${p.age}`;
+            document.getElementById('cBase').textContent = fmt(p.basePrice);
+            document.getElementById('cAvatarTxt').textContent = initials(p.name);
+            document.getElementById('cRole').className = `card-role-lbl ${roleCls}`;
+            document.getElementById('cRole').textContent = roleName;
+            document.getElementById('curBidAmt').textContent = fmt(curBid);
+            document.getElementById('hbName').textContent = '— NONE —';
+            document.getElementById('hbName').style.color = 'var(--cyan)';
+            document.getElementById('bidIn').value = '';
+            
+            renderStatsGrid(p, 'statsContainer');
+
+            // Rebuild card with fresh animation
+            const card = document.getElementById('pcMain');
+            card.style.animation = 'none'; card.offsetHeight;
+            card.style.animation = 'cardIn .7s cubic-bezier(.175,.885,.32,1.275) forwards';
+
+            document.getElementById('stageSoldOv').classList.remove('show');
+            document.getElementById('aStatus').textContent = '● BIDDING OPEN';
+            document.getElementById('aStatus').className = 'auction-status-lbl bidding';
+            document.getElementById('idleMsg').classList.add('gone');
+            document.getElementById('acWrap').classList.add('on');
+            document.getElementById('spotlight').classList.add('on');
+            document.getElementById('liveBadge').style.display = 'flex';
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').textContent = '🔨 AUCTION LIVE';
+
+            syncTeamSel(); renderPList(document.getElementById('searchIn').value); updateStats();
+            toast(`🎯 ${p.name} is now in auction!`);
+        }
+
+        function placeBid() {
+            if (!auctionLive) { toast('⚠️ No active auction'); return; }
+            const tid = parseInt(document.getElementById('teamSel').value) || document.getElementById('teamSel').value;
+            const amt = parseFloat(document.getElementById('bidIn').value);
+            if (!tid) { toast('⚠️ Select a team'); return; }
+            if (!amt || amt <= curBid) { toast(`⚠️ Bid must be > ${fmt(curBid)}`); return; }
+            const team = teams.find(t => String(t.id) === String(tid));
+            if (!team) return;
+            if (amt > team.budget - team.spent) { toast(`⚠️ ${team.name} exceeds budget!`); return; }
+
+            // Emit to server
+            if (socket && lobbyId) {
+                socket.emit('place_bid', { lobbyId, teamLocalId: team.id, amount: amt });
+            }
+
+            curBid = amt; topBidder = team;
+            const el = document.getElementById('curBidAmt');
+            el.style.animation = 'none'; el.offsetHeight;
+            el.style.animation = 'bidFlash .32s ease-out both';
+            el.textContent = fmt(curBid);
+            document.getElementById('hbName').textContent = team.name;
+            document.getElementById('hbName').style.color = team.color;
+            document.getElementById('bidIn').value = '';
+
+            renderTeams(); syncTeamSel(); spawnParticles();
+            toast(`💰 ${team.name} bids ${fmt(curBid)}!`);
+        }
+
+        function incr(amount) {
+            if (!auctionLive) return;
+            if (!parseInt(document.getElementById('teamSel').value)) { toast('❌ Select a team first'); return; }
+            document.getElementById('bidIn').value = curBid + amount;
+            placeBid();
+        }
+
+        let soldTimeout = null;
+
+        function markSold() {
+            if (!auctionLive || !curPlayer) return;
+            if (!topBidder) { toast('❌ No bids placed!'); return; }
+            const actBtn = document.querySelector('.sold-act');
+            if (actBtn) {
+                actBtn.disabled = true;
+                actBtn.textContent = 'SELLING...';
+            }
+
+            if (socket && lobbyId) {
+                socket.emit('mark_sold', {
+                    lobbyId,
+                    playerLocalId: curPlayer.localId || curPlayer.id,
+                    teamLocalId: topBidder.localId || topBidder.id,
+                    amount: curBid
+                });
+            }
+        }
+        
+        function revertSold() {
+            if (!socket || !lobbyId || !curPlayer) return;
+            if (curPlayer.status !== 'sold') return;
+            
+            if (soldTimeout) {
+                clearTimeout(soldTimeout);
+                soldTimeout = null;
+            }
+
+            socket.emit('revert_sold', { 
+                lobbyId, 
+                playerLocalId: curPlayer.localId || curPlayer.id, 
+                teamLocalId: curPlayer.soldTo, 
+                amount: curPlayer.soldPrice 
+            });
+            
+            document.getElementById('stageSoldOv').classList.remove('show');
+            document.getElementById('aStatus').textContent = '● BIDDING OPEN';
+            document.getElementById('aStatus').className = 'auction-status-lbl bidding';
+            
+            const actBtn = document.querySelector('.sold-act');
+            if (actBtn) actBtn.textContent = '🔨 SOLD';
+            
+            toast('↺ Sale reverted! Bidding is open again.');
+        }
+
+        function markUnsold() {
+            if (!auctionLive || !curPlayer) return;
+            curPlayer.status = 'unsold';
+            document.getElementById('aStatus').textContent = '✖ UNSOLD';
+            document.getElementById('aStatus').className = 'auction-status-lbl';
+            toast(`❌ ${curPlayer.name} went UNSOLD`);
+
+            if (socket && lobbyId) {
+                socket.emit('mark_unsold', { lobbyId });
+            }
+
+            setTimeout(closeAuction, 1100);
+        }
+
+        function closeAuction() {
+            auctionLive = false; curPlayer = null; curBid = 0; topBidder = null;
+            const soldBtn = document.querySelector('.sold-act');
+            if (soldBtn) {
+                soldBtn.disabled = false;
+                soldBtn.textContent = 'SOLD';
+            }
+            const unsoldBtn = document.querySelector('.unsold-act');
+            if (unsoldBtn) {
+                unsoldBtn.disabled = false;
+                unsoldBtn.textContent = '✖ UNSOLD';
+            }
+            document.getElementById('acWrap').classList.remove('on');
+            document.getElementById('spotlight').classList.remove('on');
+            document.getElementById('stageSoldOv').classList.remove('show');
+            document.getElementById('idleMsg').classList.remove('gone');
+            document.getElementById('liveBadge').style.display = 'none';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').textContent = '🔨 PUT IN AUCTION';
+            renderPList(document.getElementById('searchIn').value);
+            renderTeams(); syncTeamSel(); updateStats();
+        }
+
+        /* ──────── STATS ──────── */
+        function updateStats() {
+            const sold = players.filter(p => p.status === 'sold').length;
+            const unsold = players.filter(p => p.status === 'unsold').length;
+            const live = players.filter(p => p.status === 'in-auction').length;
+            const avail = players.filter(p => p.status === 'available').length;
+            const spent = teams.reduce((s, t) => s + t.spent, 0);
+            document.getElementById('hSold').textContent = sold;
+            document.getElementById('hRemain').textContent = avail;
+            document.getElementById('stTotal').textContent = players.length;
+            document.getElementById('stLive').textContent = live;
+            document.getElementById('stSold').textContent = sold;
+            document.getElementById('stUnsold').textContent = unsold;
+            document.getElementById('stSpent').textContent = fmt(spent);
+        }
+
+        /* ──────── FX ──────── */
+        function spawnParticles() {
+            const colors = ['#FFD700', '#00D4FF', '#FF3D5A', '#00FF99', '#fff'];
+            for (let i = 0; i < 18; i++) {
+                const d = document.createElement('div');
+                d.className = 'particle';
+                d.style.cssText = `left:${38 + Math.random() * 24}%;top:${35 + Math.random() * 30}%;
+      width:${4 + Math.random() * 6}px;height:${4 + Math.random() * 6}px;
+      background:${colors[i % colors.length]};z-index:900;position:fixed;
+      --dx:${(Math.random() - .5) * 220}px;--dy:${(Math.random() - 1) * 220}px;
+      animation-duration:${.7 + Math.random() * .8}s;animation-delay:${Math.random() * .15}s;`;
+                document.body.appendChild(d);
+                d.addEventListener('animationend', () => d.remove());
+            }
+        }
+        function launchConfetti() {
+            const colors = ['#FFD700', '#00D4FF', '#FF3D5A', '#00FF99', '#FF9F40', '#C084FC', '#fff'];
+            for (let i = 0; i < 90; i++) {
+                const c = document.createElement('div');
+                c.className = 'cf';
+                c.style.cssText = `left:${Math.random() * 100}%;
+      background:${colors[i % colors.length]};
+      width:${5 + Math.random() * 9}px;height:${8 + Math.random() * 10}px;
+      border-radius:${Math.random() > .5 ? '50%' : '2px'};
+      opacity:${.7 + Math.random() * .3};
+      animation-duration:${1.4 + Math.random() * 2.2}s;
+      animation-delay:${Math.random() * .6}s;`;
+                document.getElementById('cfWrap').appendChild(c);
+                c.addEventListener('animationend', () => c.remove());
+            }
+        }
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('up');
+            clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('up'), 2600);
+        }
+
+        /* ──────── DYNAMIC STATS ──────── */
+        function renderStatsGrid(p, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            if (!p) return;
+
+            const makeSc = (lbl, val, cls='') => `<div class="sc"><div class="sc-lbl">${lbl}</div><div class="sc-val ${cls}">${val || '—'}</div></div>`;
+
+            let html = '';
+            if (p.role === 'BAT' || p.role === 'WK') {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('INN', p.innings);
+                html += makeSc('RUNS', p.runs, 'g');
+                html += makeSc('BALLS', p.balls);
+                html += makeSc('HIGH', p.highest);
+                html += makeSc('AVG', p.avg, 'c');
+                html += makeSc('S/R', p.sr);
+                html += makeSc('NO', p.notOut);
+                html += makeSc('4s', p.fours);
+                html += makeSc('6s', p.sixes, 'c');
+                html += makeSc('50s', p.fifties);
+                html += makeSc('100s', p.hundreds, 'g');
+            } else if (p.role === 'BOWL') {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('INN', p.innings);
+                html += makeSc('BALLS', p.balls);
+                html += makeSc('RUNS', p.runs);
+                html += makeSc('MDN', p.maidens);
+                html += makeSc('WKTS', p.wickets, 'r');
+                html += makeSc('AVG', p.avg, 'c');
+                html += makeSc('ECON', p.economy);
+                html += makeSc('S/R', p.sr);
+                html += makeSc('BBI', p.bbi, 'g');
+            } else if (p.role === 'ALL-R') {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('RUNS', p.runs, 'g');
+                html += makeSc('AVG', p.avg, 'c');
+                html += makeSc('S/R', p.sr);
+                html += makeSc('HIGH', p.highest);
+                html += makeSc('50s', p.fifties);
+                html += makeSc('100s', p.hundreds, 'g');
+                html += makeSc('6s', p.sixes, 'c');
+                html += makeSc('WKTS', p.wickets, 'r');
+                html += makeSc('ECON', p.economy);
+                html += makeSc('BBI', p.bbi, 'g');
+                html += makeSc('MDN', p.maidens);
+            } else {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('RUNS', p.runs, 'g');
+                html += makeSc('WKTS', p.wickets, 'r');
+                html += makeSc('AVG', p.avg, 'c');
+            }
+            container.innerHTML = html;
+        }
+
+        /* init */
+        updateStats();
+
+        function toggleChat() {
+            const w = document.getElementById('chatWidget');
+            w.classList.toggle('collapsed');
+            const btn = document.getElementById('chatToggleBtn').querySelector('.pv');
+            btn.textContent = 'CHAT';
+            btn.style.color = 'var(--gold)';
+        }
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || !socket) return;
+            socket.emit('chat_message', { lobbyId, sender: aucName || 'Auctioneer', text });
+            input.value = '';
+        }
+        function appendChatMessage(msg) {
+            const box = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            if (msg.system) {
+                div.className = 'chat-msg system';
+                div.innerHTML = msg.text;
+            } else {
+                div.className = 'chat-msg';
+                div.innerHTML = `<span class="sender">${msg.sender}:</span>${msg.text}`;
+            }
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+            const w = document.getElementById('chatWidget');
+            if (w.classList.contains('collapsed')) {
+                const btn = document.getElementById('chatToggleBtn').querySelector('.pv');
+                btn.textContent = 'NEW MSG!';
+                btn.style.color = 'var(--green)';
+            }
+        }
+    </script>
+</body>
+
+</html>

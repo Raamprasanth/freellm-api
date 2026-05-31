@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Auction Arena - Player Screen</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="shared_auction.css">
+    <style>
+        /* Player specific overrides */
+        .workspace {
+            top: 58px;
+            bottom: 0px;
+        }
+        .my-team-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-gold);
+            text-align: center;
+        }
+        .my-team-name {
+            font-size: 28px;
+            font-family: 'Bebas Neue';
+            color: var(--gold);
+            letter-spacing: 2px;
+            margin: 10px 0;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+        }
+        .budget-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding: 0 10px;
+        }
+        .budget-box {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border: 1px solid rgba(255, 215, 0, 0.15);
+            border-radius: 8px;
+            width: 48%;
+        }
+        .budget-lbl { font-size: 10px; color: var(--fg-dim); letter-spacing: 1px; }
+        .budget-val { font-size: 16px; font-weight: bold; margin-top: 5px; }
+        .budget-val.green { color: var(--green); }
+        .bid-btn-large {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Bebas Neue';
+            font-size: 28px;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all .25s;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+        .bid-btn-large:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(255, 215, 0, 0.6);
+        }
+        .bid-btn-large:disabled {
+            background: #333;
+            color: #777;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .my-squad-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        
+        /* ── AI WELCOME MODAL ── */
+        .ai-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 8, 14, 0.95);
+            backdrop-filter: blur(15px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        .ai-modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .ai-modal-content {
+            background: rgba(13, 17, 23, 0.85);
+            border: 2px solid var(--border-gold);
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.15), inset 0 0 20px rgba(255, 215, 0, 0.05);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 650px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            padding: 30px;
+            overflow-y: auto;
+            position: relative;
+            transform: scale(0.9);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .ai-modal-overlay.show .ai-modal-content {
+            transform: scale(1);
+        }
+        .ai-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        .ai-brain-anim {
+            font-size: 32px;
+            animation: pulse-brain 2s infinite alternate;
+        }
+        @keyframes pulse-brain {
+            0% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 212, 255, 0.4); }
+            100% { transform: scale(1.15); text-shadow: 0 0 25px rgba(0, 212, 255, 0.8); }
+        }
+        .ai-modal-title {
+            font-family: 'Bebas Neue';
+            font-size: 32px;
+            letter-spacing: 3px;
+            color: var(--cyan);
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+        }
+        .ai-welcome-msg {
+            font-size: 16px;
+            color: #fff;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .ai-divider {
+            height: 1px;
+            background: linear-gradient(90deg, var(--cyan), transparent);
+            margin-bottom: 20px;
+        }
+        .ai-modal-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 10px;
+            gap: 15px;
+        }
+        .ai-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 212, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--cyan);
+            animation: spin 1s linear infinite;
+        }
+        .ai-loading-text {
+            color: var(--cyan);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        .ai-modal-body {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #e8edf5;
+            overflow-y: auto;
+            flex: 1;
+            margin-bottom: 20px;
+            padding-right: 5px;
+        }
+        .ai-modal-body h3 {
+            font-family: 'Bebas Neue';
+            font-size: 22px;
+            letter-spacing: 1px;
+            color: var(--gold);
+            margin-top: 15px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ai-modal-body p {
+            margin-bottom: 12px;
+        }
+        .ai-modal-body ul {
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+        .ai-modal-body li {
+            margin-bottom: 8px;
+        }
+        .ai-dismiss-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), var(--cyan));
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Bebas Neue';
+            font-size: 22px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+        .ai-dismiss-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 212, 255, 0.4);
+        }
+        .ai-dismiss-btn:disabled {
+            background: #222;
+            color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+
+    <div class="header">
+        <div class="brand"><span class="brand-icon">⚡</span>AUCTION ARENA</div>
+        <div class="header-pills">
+            <div class="pill" id="chatToggleBtn" onclick="toggleChat()" style="cursor: pointer; border-color: var(--gold); background: rgba(255,215,0,0.1); margin-right: 15px;" title="Toggle Chat">
+                💬 <span class="pv" style="color: var(--gold); font-weight: 800; font-size: 13px;">CHAT</span>
+            </div>
+            <div class="pill" id="topbarEvalBtn" onclick="window.open('results.html?id=' + lobbyId, '_blank')" style="display: none; cursor: pointer; border-color: var(--gold); background: rgba(255,215,0,0.1); margin-right: 15px;" title="View AI Evaluation Results">
+                🏆 <span class="pv" style="color: var(--gold); font-weight: 800; font-size: 13px;">VIEW RESULTS</span>
+            </div>
+            <div class="pill" style="border-color: var(--cyan); background: rgba(0,212,255,0.1);">ROOM <span class="pv" id="roomInfo" style="color: var(--cyan); font-weight: 800; font-size: 16px; letter-spacing: 2px;">---</span></div>
+            <div class="live-badge" id="liveBadge" style="display: none;">
+                <div class="live-dot"></div>LIVE
+            </div>
+        </div>
+    </div>
+
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeAllPanels()"></div>
+    <div class="workspace" id="mainWorkspace">
+        <!-- ▌LEFT: My Team ▐ -->
+        <div class="panel panel-left" id="panelLeft">
+            <div class="panel-head" style="display:flex; justify-content:space-between; align-items:center;">
+                <div><div class="panel-head-dot"></div>MY FRANCHISE</div>
+                <div>
+                    <button onclick="toggleLeftPanel()" class="hide-desktop-btn" style="background:transparent; color:var(--cyan); border:1px solid var(--cyan); padding:2px 8px; border-radius:12px; font-weight:bold; font-size:9px; cursor:pointer;">◀ HIDE</button>
+                    <button onclick="toggleLeftPanel()" class="close-mobile-btn" style="display:none;">✕ CLOSE</button>
+                </div>
+            </div>
+            
+            <div class="my-team-header">
+                <div style="font-size: 11px; color: var(--fg-dim); letter-spacing: 2px;">YOUR TEAM</div>
+                <div id="myTeamName" class="my-team-name">—</div>
+                <div class="budget-row">
+                    <div class="budget-box">
+                        <div class="budget-lbl">TOTAL BUDGET</div>
+                        <div id="myTotalBudget" class="budget-val">₹0</div>
+                    </div>
+                    <div class="budget-box" style="border-color: rgba(0, 255, 153, 0.3);">
+                        <div class="budget-lbl">REMAINING</div>
+                        <div id="myTeamBudget" class="budget-val green">₹0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-head" style="border-top: 1px solid var(--border-gold); background: rgba(0, 212, 255, 0.04); display: flex; justify-content: space-between; align-items: center; padding-right: 15px; flex-wrap: nowrap;">
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="color: var(--cyan); white-space: nowrap;">SQUAD (<span id="mySquadCount">0</span>/<span id="mySquadMax">25</span>)</span>
+                    <span style="color: var(--gold); white-space: nowrap; font-size: 11px;">OS: (<span id="myOsCount">0</span>/<span id="myOsMax">8</span>)</span>
+                </div>
+                <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                    <button onclick="openCompetitionModal()" style="background: rgba(0,212,255,0.15); border: 1px solid var(--cyan); color: var(--cyan); border-radius: 4px; padding: 4px 10px; font-family: 'Bebas Neue'; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='rgba(0,212,255,0.3)'" onmouseout="this.style.background='rgba(0,212,255,0.15)'">OTHER TEAMS 📊</button>
+                    <button onclick="openPlaying11Modal()" style="background: rgba(0,255,153,0.15); border: 1px solid var(--green); color: var(--green); border-radius: 4px; padding: 4px 10px; font-family: 'Bebas Neue'; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='rgba(0,255,153,0.3)'" onmouseout="this.style.background='rgba(0,255,153,0.15)'">FINAL 🏏</button>
+                </div>
+            </div>
+            
+            <div class="my-squad-list" id="mySquadList">
+                <div class="no-msg">
+                    <div class="ni">👥</div>No players bought yet
+                </div>
+            </div>
+        </div>
+
+        <!-- ▌CENTER: Stage ▐ -->
+        <div class="panel stage" id="stage" style="position: relative;">
+            <button id="floatingShowBtnLeft" onclick="toggleLeftPanel()" style="display:none; position:absolute; top:12px; left:12px; z-index:10; background:var(--cyan); color:#000; border:none; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:10px; cursor:pointer; box-shadow:0 0 10px rgba(0,212,255,0.4);">▶ SHOW FRANCHISE</button>
+            <button id="floatingShowBtnRight" onclick="toggleRightPanel()" style="display:none; position:absolute; top:12px; right:12px; z-index:10; background:var(--cyan); color:#000; border:none; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:10px; cursor:pointer; box-shadow:0 0 10px rgba(0,212,255,0.4);">◀ SHOW AI</button>
+            <div class="spotlight" id="spotlight"></div>
+            
+            <div class="idle" id="idleMsg">
+                <div class="idle-icon">⏳</div>
+                <div class="idle-title">WAITING FOR AUCTIONEER</div>
+                <div class="idle-sub">The next player will appear here shortly...</div>
+            </div>
+
+            <div class="ac-wrap" id="acWrap">
+                <div class="auction-status-lbl" id="aStatus">● BIDDING OPEN</div>
+                
+                <div class="pc-main" id="pcMain">
+                    <div class="card-shimmer"></div>
+
+                    <div class="card-top">
+                        <div class="card-num" id="cNum">#0</div>
+                        <div class="card-role-lbl rb-bat" id="cRole">BATSMAN</div>
+                    </div>
+
+                    <div class="card-body-row">
+                        <div class="av-lg" id="cAvatar">
+                            <div class="av-ring"></div>
+                            <span id="cAvatarTxt">PL</span>
+                        </div>
+                        <div>
+                            <div class="pname-lg" id="cName">PLAYER NAME</div>
+                            <div class="pcountry" id="cCountry">🌍 Country</div>
+                            <div class="page" id="cAge">Age: 0</div>
+                            <div class="pbase">BASE PRICE: <span class="pbase-val" id="cBase">₹0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid" id="statsContainer">
+                        <!-- Dynamically populated based on role -->
+                    </div>
+
+                    <div class="bid-row">
+                        <div>
+                            <div class="cur-bid-lbl">CURRENT BID</div>
+                            <div class="cur-bid-amt" id="curBidAmt">₹0</div>
+                            <div class="timer" id="timerEl" style="display:none;"></div>
+                        </div>
+                        <div>
+                            <div class="hb-lbl">HIGHEST BIDDER</div>
+                            <div class="hb-name" id="hbName">— NONE —</div>
+                        </div>
+                    </div>
+
+                    <!-- Sold overlay -->
+                    <div class="sold-ov" id="soldOv">
+                        <div class="sold-hammer">🔨</div>
+                        <div class="sold-word">SOLD!</div>
+                        <div class="sold-to-lbl">TO</div>
+                        <div class="sold-to-team" id="soldTeam">—</div>
+                        <div class="sold-price-big" id="soldPrice">₹0</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:25px; width: 100%; max-width: 380px;">
+                    <button class="bid-btn-large" id="bidBtn" onclick="placeUserBid()">BID ₹+10L</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ▌RIGHT: AI Strategist Panel ▐ -->
+        <div class="panel panel-right" id="panelRight">
+            <div class="panel-head" style="display:flex; justify-content:space-between; align-items:center;">
+                <div><div class="panel-head-dot"></div>AI STRATEGIST</div>
+                <div>
+                    <button onclick="toggleRightPanel()" class="hide-desktop-btn" style="background:transparent; color:var(--cyan); border:1px solid var(--cyan); padding:2px 8px; border-radius:12px; font-weight:bold; font-size:9px; cursor:pointer;">HIDE ▶</button>
+                    <button onclick="toggleRightPanel()" class="close-mobile-btn" style="display:none;">✕ CLOSE</button>
+                </div>
+            </div>
+            <div id="aiPanelContent" style="padding: 15px; flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
+                <div class="no-msg" id="aiIdleMsg">
+                    <div class="ni" style="font-size: 32px; margin-bottom: 10px;">🤖</div>
+                    Waiting for player...
+                </div>
+                <div id="aiLoading" style="display: none; text-align: center; color: var(--cyan); padding: 40px 10px;">
+                    <div style="font-size: 24px; animation: pulse-border 1.5s infinite; margin-bottom: 15px;">🧠</div>
+                    <div style="letter-spacing: 1px; font-size: 13px;">Analyzing player fit...</div>
+                </div>
+                <div id="aiResult" style="display: none;">
+                    <div style="background: rgba(0, 212, 255, 0.08); border: 1px solid rgba(0, 212, 255, 0.3); padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                        <div style="font-size: 11px; color: var(--cyan); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed rgba(0, 212, 255, 0.3); padding-bottom: 6px;">📡 Live Stats & Form</div>
+                        <div id="aiLiveStats" style="font-size: 14px; line-height: 1.5; color: #fff;"></div>
+                    </div>
+                    <div style="background: rgba(255,0,127,0.08); border: 1px solid rgba(255,0,127,0.3); padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 0 20px rgba(255,0,127,0.15);">
+                        <div style="font-size: 11px; color: #ff007f; letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed rgba(255,0,127,0.3); padding-bottom: 6px;">⚡ Strategy Recommendation</div>
+                        <div id="aiText" style="font-size: 14px; line-height: 1.5; color: #fff;"></div>
+                    </div>
+                    <!-- AI Tactical Fit Score Box -->
+                    <div id="aiFitScoreBox" style="display: none; background: rgba(0, 255, 153, 0.06); border: 1px solid rgba(0, 255, 153, 0.25); padding: 15px; border-radius: 12px; box-shadow: 0 0 20px rgba(0, 255, 153, 0.1);">
+                        <div style="font-size: 11px; color: var(--green); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed rgba(0, 255, 153, 0.25); padding-bottom: 6px;">🎯 AI Tactical Fit Score</div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div id="aiFitScoreCircle" style="font-size: 26px; font-family: 'Bebas Neue'; color: var(--green); text-shadow: 0 0 10px rgba(0, 255, 153, 0.4); border: 2px solid rgba(0, 255, 153, 0.5); border-radius: 50%; min-width: 55px; max-width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4);">--</div>
+                            <div id="aiFitScoreReason" style="font-size: 13.5px; line-height: 1.5; color: #fff; flex: 1;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="aiPreGame" style="display: none; background: rgba(0,240,255,0.05); border: 1px solid rgba(0,240,255,0.2); padding: 18px; border-radius: 12px; box-shadow: 0 0 20px rgba(0,240,255,0.1);">
+                    <div style="font-size: 11px; color: #00f0ff; letter-spacing: 1px; margin-bottom: 12px; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed rgba(0,240,255,0.3); padding-bottom: 8px;">📊 Pre-Auction Mastery Plan</div>
+                    <div id="aiPreGameText" style="font-size: 14px; line-height: 1.6; color: #fff;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Competition Modal -->
+    <div class="ai-modal-overlay" id="compModalOverlay">
+        <div class="ai-modal-content" style="max-width: 800px; padding: 25px;">
+            <div class="ai-modal-header" style="justify-content: space-between; margin-bottom: 20px;">
+                <div class="ai-modal-title">🏆 PARTICIPATING TEAMS</div>
+                <button onclick="closeCompetitionModal()" style="background: transparent; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 10px;">✖</button>
+            </div>
+            <div class="ai-divider"></div>
+            <div id="compTeamsContainer" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; overflow-y: auto; max-height: 60vh; padding-right: 5px;">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Playing 11 Modal -->
+    <div class="ai-modal-overlay" id="playing11ModalOverlay">
+        <div class="ai-modal-content" style="max-width: 900px; padding: 25px; height: 80vh; display: flex; flex-direction: column;">
+            <div class="ai-modal-header" style="justify-content: space-between; margin-bottom: 20px;">
+                <div class="ai-modal-title" style="color: var(--green); text-shadow: 0 0 15px rgba(0,255,153,0.4);">🏏 SELECT PLAYING 11</div>
+                <button onclick="closePlaying11Modal()" style="background: transparent; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 10px;">✖</button>
+            </div>
+            <div class="ai-divider" style="background: linear-gradient(90deg, var(--green), transparent);"></div>
+            
+            <div style="display: flex; gap: 20px; flex: 1; min-height: 0;">
+                <!-- BENCH -->
+                <div style="flex: 1; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,215,0,0.2); border-radius: 8px; display: flex; flex-direction: column;">
+                    <div style="padding: 15px; background: rgba(255,215,0,0.05); border-bottom: 1px solid rgba(255,215,0,0.2); font-family: 'Bebas Neue'; font-size: 20px; color: var(--gold);">
+                        BENCH (<span id="benchCount">0</span>)
+                    </div>
+                    <div id="benchContainer" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Bench Players -->
+                    </div>
+                </div>
+
+                <!-- PLAYING 11 -->
+                <div style="flex: 1; background: rgba(0,255,153,0.05); border: 1px solid rgba(0,255,153,0.2); border-radius: 8px; display: flex; flex-direction: column;">
+                    <div style="padding: 15px; background: rgba(0,255,153,0.1); border-bottom: 1px solid rgba(0,255,153,0.2); font-family: 'Bebas Neue'; font-size: 20px; color: var(--green); display: flex; justify-content: space-between;">
+                        <span>PLAYING 11 (<span id="playing11Count">0</span>/11)</span>
+                        <button id="submit11Btn" onclick="submitPlaying11()" disabled style="background: var(--green); color: #000; border: none; border-radius: 4px; padding: 2px 10px; font-family: 'Bebas Neue'; font-size: 16px; cursor: not-allowed; opacity: 0.5;">SUBMIT TEAM</button>
+                    </div>
+                    <div id="playing11Container" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Playing 11 Players -->
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; text-align: center; color: var(--fg-dim); font-size: 13px;">Click a player to move them between Bench and Playing 11.</div>
+        </div>
+    </div>
+
+    <!-- Confetti wrapper -->
+    <div id="cfWrap" style="position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden;"></div>
+
+    <!-- Chat Widget -->
+    <div class="chat-widget collapsed" id="chatWidget">
+        <div class="chat-header" onclick="toggleChat()">
+            <span>💬 AUCTION CHAT</span>
+            <span id="chatToggleIcon">▲</span>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="chat-send-btn" onclick="sendChatMessage()">SEND</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        let savedSession = {};
+        try {
+            savedSession = JSON.parse(sessionStorage.getItem('ipl_session') || '{}');
+        } catch (e) {}
+        const roomCode = urlParams.get('room') || savedSession.roomCode;
+        const teamId = urlParams.get('team') || savedSession.teamId;
+        let lobbyId = null;
+        let myTeam = null;
+        let maxSquadSize = 25;
+        let maxOverseas = 8;
+        let gameState = null;
+        let lastAiPlayerId = null;
+        let pregameStrategyFetched = false;
+        let allPlayers = [];
+        let soldTimeoutId = null; // Transition timeout tracker to prevent race conditions
+        const socket = io();
+        socket.on('chat_message', appendChatMessage);
+        socket.on('connect', () => {
+            if (lobbyId) {
+                let playerName = 'Player';
+                try {
+                    const s = JSON.parse(sessionStorage.getItem('ipl_session'));
+                    if (s && s.name) playerName = s.name;
+                } catch (e) {}
+                socket.emit('join_lobby', { lobbyId, roomCode, role: 'player', teamLocalId: teamId, playerName });
+            }
+        });
+
+        async function refreshLobbyPlayers() {
+            if (!roomCode) return [];
+            try {
+                const res = await fetch(`/api/lobby/room/${roomCode}`);
+                if (!res.ok) return [];
+                const json = await res.json();
+                allPlayers = json.data.players || allPlayers;
+                return allPlayers;
+            } catch (e) {
+                console.warn('Could not refresh lobby players', e);
+                return allPlayers;
+            }
+        }
+
+        // Audio Context for native synthesizer
+        let audioCtx = null;
+        let soundMuted = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === "suspended") {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (soundMuted || !audioCtx) return;
+            if (audioCtx.state === "suspended") audioCtx.resume();
+            try {
+                const now = audioCtx.currentTime;
+                if (type === "bid") {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(880, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.start(now); osc.stop(now + 0.13);
+                } 
+                else if (type === "hammer") {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.type = "triangle";
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+                    gain.gain.setValueAtTime(0.6, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                    osc.start(now); osc.stop(now + 0.21);
+                }
+            } catch (e) { console.warn(e); }
+        }
+
+        function fmt(v) {
+            if (!v || v === 0) return '\u20B90';
+            if (v >= 10000000) return '\u20B9' + (v / 10000000).toFixed(2).replace(/\.?0+$/, '') + ' Cr';
+            if (v >= 100000) return '\u20B9' + (v / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+            return '\u20B9' + v.toLocaleString();
+        }
+
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('up');
+            setTimeout(() => t.classList.remove('up'), 3000);
+        }
+
+        const roleMap = {
+            BAT: ['rb-bat', 'BAT', 'BATSMAN'],
+            BOWL: ['rb-bowl', 'BOWL', 'BOWLER'],
+            'ALL-R': ['rb-all', 'AR', 'ALL-ROUNDER'],
+            WK: ['rb-wk', 'WK', 'WICKET-KEEPER'],
+        };
+        function normalizeTeamsList(list = []) {
+            const canonicalIds = new Set(list
+                .map(t => String(t.localId || t.id || '').toUpperCase())
+                .filter(id => id && id.length <= 5));
+            const seenIds = new Set();
+
+            return list.filter(t => {
+                const id = String(t.localId || t.id || '').toUpperCase();
+                const name = String(t.name || '').toUpperCase();
+                if (!id || seenIds.has(id)) return false;
+                if (canonicalIds.has(name) && id !== name) return false;
+                seenIds.add(id);
+                return true;
+            });
+        }
+        function initials(n) { return n.split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(); }
+
+        async function init() {
+            if (!roomCode || !teamId) {
+                document.body.innerHTML = '<h2 style="color:red;text-align:center;margin-top:50px">Invalid Access. Room or Team missing.</h2>';
+                return;
+            }
+            document.getElementById('roomInfo').textContent = roomCode;
+
+            try {
+                const res = await fetch(`/api/lobby/room/${roomCode}`, { cache: 'no-store' });
+                if (!res.ok) throw new Error('Lobby not found');
+                const json = await res.json();
+                lobbyId = json.data._id;
+                allPlayers = json.data.players || [];
+                maxSquadSize = json.data.maxSquadSize || 25;
+                maxOverseas = json.data.maxOverseas || 8;
+                
+                document.getElementById('mySquadMax').textContent = maxSquadSize;
+                document.getElementById('myOsMax').textContent = maxOverseas;
+
+                const teams = normalizeTeamsList(json.data.teams).map(t => ({
+                    ...t,
+                    budget: t.budget < 1000 ? t.budget * 10000000 : t.budget,
+                    spent: t.spent < 1000 ? t.spent * 10000000 : t.spent,
+                }));
+                myTeam = teams.find(t => 
+                    String(t.localId).toUpperCase() === String(teamId).toUpperCase() || 
+                    String(t.id).toUpperCase() === String(teamId).toUpperCase()
+                );
+                
+                if (myTeam) {
+                    document.getElementById('myTeamName').textContent = myTeam.name;
+                    document.getElementById('myTeamName').style.color = myTeam.color || 'var(--gold)';
+                    document.getElementById('myTotalBudget').textContent = fmt(myTeam.budget);
+                    document.getElementById('myTeamBudget').textContent = fmt(myTeam.budget - myTeam.spent);
+                    renderMySquad(myTeam.players || []);
+                    
+                    // Show AI Welcome Modal ONLY if it hasn't been shown in this session yet!
+                    const strategyCacheKey = `ai_strategy_${roomCode}_${teamId}`;
+                    const modalShownCacheKey = `ai_modal_shown_${roomCode}_${teamId}`;
+                    const modalShown = sessionStorage.getItem(modalShownCacheKey);
+                    
+                    if (!modalShown) {
+                        openAiWelcomeModal(myTeam, allPlayers);
+                    } else {
+                        // Put strategy in sidebar instantly from cache so no data vanishes on refresh
+                        const cachedStrategy = sessionStorage.getItem(strategyCacheKey);
+                        if (cachedStrategy) {
+                            document.getElementById('aiIdleMsg').style.display = 'none';
+                            document.getElementById('aiLoading').style.display = 'none';
+                            document.getElementById('aiResult').style.display = 'none';
+                            document.getElementById('aiPreGame').style.display = 'block';
+                            document.getElementById('aiPreGameText').innerHTML = cachedStrategy;
+                            pregameStrategyFetched = true;
+                        }
+                    }
+                }
+                
+                renderCompetition(teams);
+
+                let playerName = 'Player';
+                try {
+                    const s = JSON.parse(sessionStorage.getItem('ipl_session'));
+                    if (s && s.name) playerName = s.name;
+                } catch (e) {}
+
+                socket.emit('join_lobby', { lobbyId, roomCode, role: 'player', teamLocalId: teamId, playerName });
+                
+                socket.on('evaluation_published', (data) => {
+                    document.getElementById('topbarEvalBtn').style.display = 'flex';
+                });
+            } catch (err) {
+                toast('Error connecting to game.');
+                console.error(err);
+            }
+        }
+
+        function renderMySquad(players) {
+            const list = document.getElementById('mySquadList');
+            document.getElementById('mySquadCount').textContent = players.length;
+            
+            let osCount = 0;
+            players.forEach(p => {
+                const fullPlayer = allPlayers.find(ap => ap.localId === p.localId);
+                if (fullPlayer && fullPlayer.country && !['India', 'IND', '—'].includes(fullPlayer.country)) {
+                    osCount++;
+                }
+            });
+            document.getElementById('myOsCount').textContent = osCount;
+
+            if (!players || players.length === 0) {
+                list.innerHTML = `<div class="no-msg"><div class="ni">👥</div>No players bought yet</div>`;
+                return;
+            }
+            
+            const playing11 = myTeam?.playing11 || [];
+            
+            list.innerHTML = players.map(p => {
+                const isP11 = playing11.includes(p.localId);
+                const fullPlayer = allPlayers.find(ap => ap.localId === p.localId);
+                const isOverseas = fullPlayer && fullPlayer.country && !['India', 'IND', '—'].includes(fullPlayer.country);
+                const osIcon = isOverseas ? ' ✈️' : '';
+                return `
+                <div class="pitem p-sold" style="opacity: 1; pointer-events: none; border: 1px solid ${isP11 ? 'rgba(0,255,153,0.4)' : 'rgba(255,215,0,0.2)'}; margin-bottom: 5px; position: relative;">
+                    ${isP11 ? '<div style="position:absolute; top:-5px; right:-5px; background:var(--green); color:#000; font-size:9px; font-weight:bold; padding:2px 4px; border-radius:4px;">XI</div>' : ''}
+                    <div class="av-sm" style="font-size: 10px;">✅</div>
+                    <div class="pinfo-sm">
+                        <div class="pname-sm" style="color: #fff;">${p.name}${osIcon}</div>
+                        <div class="pmeta-sm" style="color: var(--green); font-weight: bold;">${fmt(p.soldPrice)}</div>
+                    </div>
+                    <span class="role-badge ${roleMap[p.role]?.[0] || 'rb-bat'}">${roleMap[p.role]?.[1] || '?'}</span>
+                </div>
+            `}).join('');
+        }
+
+        function renderCompetition(teams) {
+            const list = document.getElementById('compTeamsContainer');
+            if (!list) return;
+            const otherTeams = teams.filter(t => String(t.localId) !== String(teamId) && String(t.id) !== String(teamId));
+            
+            if (otherTeams.length === 0) {
+                list.innerHTML = `<div style="color:var(--fg-dim); grid-column: 1 / -1; text-align: center; padding: 20px;">No other participating teams found.</div>`;
+                return;
+            }
+
+            list.innerHTML = otherTeams.map(t => {
+                const rem = t.budget - t.spent;
+                const pct = Math.min(100, (t.spent / t.budget) * 100);
+                const c = t.color || 'var(--cyan)';
+                
+                const playersList = t.players && t.players.length > 0 
+                    ? t.players.map(p => {
+                        const fullPlayer = allPlayers.find(ap => ap.localId === p.localId);
+                        const isOverseas = fullPlayer && fullPlayer.country && !['India', 'IND', '—'].includes(fullPlayer.country);
+                        const osIcon = isOverseas ? ' ✈️' : '';
+                        return `
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:3px;">
+                            <span style="color:#e8edf5;">${p.name}${osIcon}</span>
+                            <span style="color:var(--green)">${fmt(p.soldPrice)}</span>
+                        </div>
+                    `}).join('') 
+                    : '<div style="font-size:12px; color:var(--fg-dim);">No players yet</div>';
+
+                return `
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid ${c}44; border-radius: 8px; padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center;">
+                        <div style="color:${c}; font-family: 'Bebas Neue'; font-size: 22px; letter-spacing: 1px;">${t.name}</div>
+                        <div style="color: var(--gold); font-weight: bold;">Rem: ${fmt(rem)}</div>
+                    </div>
+                    <div style="height: 4px; background: #333; border-radius: 2px; margin-bottom: 15px; overflow: hidden;">
+                        <div style="height: 100%; width: ${pct}%; background: ${c};"></div>
+                    </div>
+                    <div style="font-size: 11px; color: var(--fg-dim); margin-bottom: 8px; letter-spacing: 1px;">SQUAD (${t.players ? t.players.length : 0})</div>
+                    <div style="max-height: 120px; overflow-y: auto; padding-right: 5px;">
+                        ${playersList}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openCompetitionModal() {
+            document.getElementById('compModalOverlay').classList.add('show');
+        }
+        
+        function closeCompetitionModal() {
+            document.getElementById('compModalOverlay').classList.remove('show');
+        }
+
+        /* ──────── PLAYING 11 LOGIC ──────── */
+        let selectedPlaying11 = [];
+
+        function openPlaying11Modal() {
+            if (!myTeam || !myTeam.players) return;
+            selectedPlaying11 = myTeam.playing11 ? [...myTeam.playing11] : [];
+            renderPlaying11Modal();
+            document.getElementById('playing11ModalOverlay').classList.add('show');
+        }
+
+        function closePlaying11Modal() {
+            document.getElementById('playing11ModalOverlay').classList.remove('show');
+        }
+
+        function togglePlayer11(localId) {
+            if (selectedPlaying11.includes(localId)) {
+                selectedPlaying11 = selectedPlaying11.filter(id => id !== localId);
+            } else {
+                if (selectedPlaying11.length >= 11) {
+                    toast('⚠️ Maximum 11 players can be selected!');
+                    return;
+                }
+                
+                const fullPlayer = allPlayers.find(ap => ap.localId === localId);
+                const isOverseas = fullPlayer && fullPlayer.country && !['India', 'IND', '—'].includes(fullPlayer.country);
+                
+                if (isOverseas) {
+                    const currentOsCount = selectedPlaying11.filter(id => {
+                        const fp = allPlayers.find(ap => ap.localId === id);
+                        return fp && fp.country && !['India', 'IND', '—'].includes(fp.country);
+                    }).length;
+                    
+                    if (currentOsCount >= 4) {
+                        toast('⚠️ Max 4 overseas players allowed!');
+                        return;
+                    }
+                }
+                
+                selectedPlaying11.push(localId);
+            }
+            renderPlaying11Modal();
+        }
+
+        function renderPlaying11Modal() {
+            const benchC = document.getElementById('benchContainer');
+            const p11C = document.getElementById('playing11Container');
+            const submitBtn = document.getElementById('submit11Btn');
+            
+            const benchPlayers = [];
+            const p11Players = [];
+
+            if (myTeam && myTeam.players) {
+                myTeam.players.forEach(p => {
+                    if (selectedPlaying11.includes(p.localId)) {
+                        p11Players.push(p);
+                    } else {
+                        benchPlayers.push(p);
+                    }
+                });
+            }
+
+            document.getElementById('benchCount').textContent = benchPlayers.length;
+            document.getElementById('playing11Count').textContent = p11Players.length;
+
+            if (p11Players.length === 11) {
+                submitBtn.disabled = false;
+                submitBtn.style.cursor = 'pointer';
+                submitBtn.style.opacity = '1';
+                submitBtn.style.boxShadow = '0 0 10px var(--green)';
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.style.cursor = 'not-allowed';
+                submitBtn.style.opacity = '0.5';
+                submitBtn.style.boxShadow = 'none';
+            }
+
+            const pCardTpl = (p, isBench) => {
+                const fullPlayer = allPlayers.find(ap => ap.localId === p.localId);
+                const isOverseas = fullPlayer && fullPlayer.country && !['India', 'IND', '—'].includes(fullPlayer.country);
+                const osIcon = isOverseas ? ' ✈️' : '';
+                return `
+                <div onclick="togglePlayer11(${p.localId})" style="display:flex; justify-content:space-between; align-items:center; background: rgba(255,255,255,0.05); padding: 10px 15px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.borderColor='${isBench ? 'var(--gold)' : 'var(--green)'}'" onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.borderColor='transparent'">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="role-badge ${roleMap[p.role]?.[0] || 'rb-bat'}" style="margin: 0; padding: 2px 6px;">${roleMap[p.role]?.[1] || '?'}</span>
+                        <div style="color: #fff; font-weight: 600;">${p.name}${osIcon}</div>
+                    </div>
+                    <div style="color: ${isBench ? 'var(--cyan)' : 'var(--green)'}; font-size: 18px; font-weight: bold;">${isBench ? '+' : '−'}</div>
+                </div>
+            `};
+
+            benchC.innerHTML = benchPlayers.map(p => pCardTpl(p, true)).join('');
+            p11C.innerHTML = p11Players.map(p => pCardTpl(p, false)).join('');
+        }
+
+        function submitPlaying11() {
+            if (selectedPlaying11.length !== 11) {
+                toast("Please select exactly 11 players");
+                return;
+            }
+            if (socket && lobbyId && myTeam) {
+                const benchIds = myTeam.players.filter(p => !selectedPlaying11.includes(p.localId)).map(p => p.localId);
+                socket.emit('submit_playing_11', { lobbyId, teamLocalId: myTeam.localId, playing11: selectedPlaying11, bench: benchIds });
+                toast("✅ Playing 11 Submitted!");
+                closePlaying11Modal();
+            }
+        }
+
+        socket.on('state_update', async (state) => {
+            gameState = state;
+            if (state.evaluationHtml) {
+                document.getElementById('topbarEvalBtn').style.display = 'flex';
+            }
+            if (state.players && state.players.length > 0) {
+                allPlayers = state.players;
+            }
+            if (state.teams) {
+                const fixedTeams = normalizeTeamsList(state.teams).map(t => ({
+                    ...t,
+                    budget: t.budget < 1000 ? t.budget * 10000000 : t.budget,
+                    spent: t.spent < 1000 ? t.spent * 10000000 : t.spent,
+                }));
+                myTeam = fixedTeams.find(t => 
+                    String(t.localId).toUpperCase() === String(teamId).toUpperCase() || 
+                    String(t.id).toUpperCase() === String(teamId).toUpperCase()
+                ) || myTeam;
+                if (myTeam) {
+                    document.getElementById('myTeamBudget').textContent = fmt(myTeam.budget - myTeam.spent);
+                    renderMySquad(myTeam.players || []);
+                }
+                renderCompetition(fixedTeams);
+            }
+
+            if (state.status === 'LIVE' && state.currentPlayer) {
+                // Clear any pending sold/unsold transition timeouts to prevent hiding the new player
+                if (soldTimeoutId) {
+                    clearTimeout(soldTimeoutId);
+                    soldTimeoutId = null;
+                }
+
+                document.getElementById('idleMsg').classList.add('gone');
+                document.getElementById('acWrap').classList.add('on');
+                document.getElementById('spotlight').classList.add('on');
+                document.getElementById('liveBadge').style.display = 'flex';
+                document.getElementById('soldOv').classList.remove('show');
+
+                const cp = state.currentPlayer;
+                console.log("[SOCKET state_update] Bidding is LIVE for playerLocalId:", cp.localId, "lastAiPlayerId was:", lastAiPlayerId);
+                
+                // Dynamically scale basePrice and curBid from Lakhs to Rupees if stored in Lakhs
+                if (cp.basePrice && cp.basePrice < 10000) {
+                    cp.basePrice = cp.basePrice * 100000;
+                }
+                if (cp.curBid && cp.curBid < 10000) {
+                    cp.curBid = cp.curBid * 100000;
+                }
+                let pDetails = (cp.details) || allPlayers.find(p => String(p.localId) === String(cp.localId) || String(p.id) === String(cp.localId)) || cp;
+                if (!pDetails.name) {
+                    const freshPlayers = await refreshLobbyPlayers();
+                    pDetails = freshPlayers.find(p => String(p.localId) === String(cp.localId) || String(p.id) === String(cp.localId)) || cp;
+                }
+                console.log("[SOCKET state_update] pDetails resolved to:", pDetails.name, "with role:", pDetails.role);
+                
+                if (pDetails && pDetails.name) {
+                    document.getElementById('cName').textContent = pDetails.name.toUpperCase();
+                    const [roleCls, , roleName] = roleMap[pDetails.role] || roleMap.BAT;
+                    document.getElementById('cRole').className = `card-role-lbl ${roleCls}`;
+                    document.getElementById('cRole').textContent = roleName;
+                    document.getElementById('cCountry').textContent = `🌍 ${pDetails.country || 'Unknown'}`;
+                    document.getElementById('cAge').textContent = `Age: ${pDetails.age || '—'}`;
+                    document.getElementById('cAvatarTxt').textContent = initials(pDetails.name);
+                    
+                    renderStatsGrid(pDetails, 'statsContainer');
+                } else {
+                    document.getElementById('cName').textContent = "PLAYER ID: " + cp.localId;
+                }
+                
+                document.getElementById('cBase').textContent = fmt(cp.basePrice || 0);
+                document.getElementById('curBidAmt').textContent = fmt(cp.curBid);
+                
+                let bidderName = '— NONE —';
+                let bidderColor = 'var(--cyan)';
+                if (cp.topBidder) {
+                    const topT = state.teams.find(t => String(t.localId) === String(cp.topBidder) || String(t.id) === String(cp.topBidder));
+                    if (topT) {
+                        bidderName = topT.name;
+                        bidderColor = topT.color || bidderColor;
+                    }
+                }
+                
+                const hbEl = document.getElementById('hbName');
+                hbEl.textContent = bidderName;
+                hbEl.style.color = bidderColor;
+                hbEl.style.borderColor = bidderColor;
+ 
+                // Update bid button
+                const btn = document.getElementById('bidBtn');
+                let cur = cp.curBid || cp.basePrice || 1000000;
+                
+                // Trigger AI Fetch if new player
+                if (cp.localId !== lastAiPlayerId && pDetails && myTeam) {
+                    console.log("[AI STRATEGIST] Transitioning player! Triggering AI Strategy for:", pDetails.name, "Advised franchise:", myTeam.name);
+                    lastAiPlayerId = cp.localId;
+                    fetchAiStrategy(myTeam.name, pDetails, myTeam.players || []);
+                }
+                
+                document.getElementById('aiPreGame').style.display = 'none';
+
+                let increment = 1000000; // 10L
+                if (cur >= 10000000) increment = 2500000; // 25L for > 1Cr
+                if (cur >= 50000000) increment = 5000000; // 50L for > 5Cr
+                
+                // If there is no topBidder yet, the opening bid is exactly the basePrice!
+                const nextBid = (!cp.topBidder) ? (cp.basePrice || cur) : (cur + increment);
+                
+                btn.textContent = `BID ${fmt(nextBid)}`;
+                
+                const rem = myTeam ? (myTeam.budget - myTeam.spent) : 0;
+                
+                if (!myTeam) {
+                    btn.disabled = true;
+                    btn.textContent = 'SPECTATING';
+                    btn.style.background = '#333';
+                } else if (cp.biddingClosed) {
+                    btn.disabled = true;
+                    btn.textContent = 'BIDDING CLOSED';
+                    btn.style.background = '#333';
+                } else if (String(cp.topBidder).toUpperCase() === String(teamId).toUpperCase()) {
+                    btn.disabled = true;
+                    btn.textContent = 'YOU ARE HIGHEST';
+                    btn.style.background = '#333';
+                } else if (nextBid > rem) {
+                    btn.disabled = true;
+                    btn.textContent = 'NO BUDGET';
+                    btn.style.background = '#333';
+                } else {
+                    btn.disabled = false;
+                    btn.style.background = '';
+                    btn.onclick = () => {
+                        initAudio();
+                        socket.emit('place_bid', { lobbyId, teamLocalId: teamId, amount: nextBid });
+                    };
+                }
+
+            } else {
+                document.getElementById('idleMsg').classList.remove('gone');
+                document.getElementById('acWrap').classList.remove('on');
+                document.getElementById('spotlight').classList.remove('on');
+                document.getElementById('liveBadge').style.display = 'none';
+
+                lastAiPlayerId = null;
+                
+                // Show Pre-Game Strategy
+                if (!pregameStrategyFetched && state.players && state.players.length > 0 && myTeam) {
+                    pregameStrategyFetched = true;
+                    fetchPregameStrategy(myTeam.name, state.players);
+                } else if (!pregameStrategyFetched) {
+                    document.getElementById('aiIdleMsg').style.display = 'block';
+                    document.getElementById('aiLoading').style.display = 'none';
+                    document.getElementById('aiResult').style.display = 'none';
+                    document.getElementById('aiPreGame').style.display = 'none';
+                } else {
+                    document.getElementById('aiIdleMsg').style.display = 'none';
+                    document.getElementById('aiLoading').style.display = 'none';
+                    document.getElementById('aiResult').style.display = 'none';
+                    document.getElementById('aiPreGame').style.display = 'block';
+                }
+            }
+        });
+
+        
+
+        socket.on('bid_placed', ({ amount }) => {
+            playSound('bid');
+            const el = document.getElementById('curBidAmt');
+            el.textContent = fmt(amount);
+            el.style.animation = 'none';
+            el.offsetHeight; // trigger reflow
+            el.style.animation = 'bidFlash .32s ease-out both';
+            spawnParticles();
+        });
+
+        socket.on('player_sold', (data) => {
+            playSound('hammer');
+            document.getElementById('idleMsg').classList.add('gone');
+            document.getElementById('acWrap').classList.add('on');
+            document.getElementById('spotlight').classList.add('on');
+            document.getElementById('liveBadge').style.display = 'none';
+            
+            const team = gameState.teams?.find(t => String(t.localId) === String(data.teamLocalId) || String(t.id) === String(data.teamLocalId));
+            
+            document.getElementById('soldTeam').textContent = team ? team.name : 'Unknown Team';
+            document.getElementById('soldTeam').style.color = team ? team.color : 'var(--gold)';
+            document.getElementById('soldPrice').textContent = fmt(data.amount);
+            document.getElementById('soldOv').classList.add('show');
+            document.getElementById('aStatus').textContent = '✅ SOLD!';
+            document.getElementById('aStatus').className = 'auction-status-lbl sold-st';
+            
+            if (String(data.teamLocalId) === String(teamId)) {
+                toast(`🎉 You bought the player for ${fmt(data.amount)}!`);
+                launchConfetti();
+            } else {
+                toast(`🔨 Sold to ${team ? team.name : 'someone'} for ${fmt(data.amount)}!`);
+            }
+            
+            if (soldTimeoutId) clearTimeout(soldTimeoutId);
+            soldTimeoutId = setTimeout(() => {
+                document.getElementById('idleMsg').classList.remove('gone');
+                document.getElementById('acWrap').classList.remove('on');
+                document.getElementById('spotlight').classList.remove('on');
+                document.getElementById('soldOv').classList.remove('show');
+                soldTimeoutId = null;
+            }, 5000);
+        });
+        
+        socket.on('player_unsold', () => {
+            playSound('hammer');
+            document.getElementById('aStatus').textContent = '✖ UNSOLD';
+            document.getElementById('aStatus').className = 'auction-status-lbl';
+            toast(`❌ Player went UNSOLD`);
+            if (soldTimeoutId) clearTimeout(soldTimeoutId);
+            soldTimeoutId = setTimeout(() => {
+                document.getElementById('idleMsg').classList.remove('gone');
+                document.getElementById('acWrap').classList.remove('on');
+                document.getElementById('spotlight').classList.remove('on');
+                soldTimeoutId = null;
+            }, 2000);
+        });
+
+        function spawnParticles() {
+            const colors = ['#FFD700', '#00D4FF', '#FF3D5A', '#00FF99', '#fff'];
+            for (let i = 0; i < 15; i++) {
+                const d = document.createElement('div');
+                d.className = 'particle';
+                d.style.cssText = `left:${40 + Math.random() * 20}%;top:${40 + Math.random() * 20}%;
+                width:${4 + Math.random() * 6}px;height:${4 + Math.random() * 6}px;
+                background:${colors[i % colors.length]};z-index:900;position:fixed;
+                --dx:${(Math.random() - .5) * 200}px;--dy:${(Math.random() - 1) * 200}px;
+                animation-duration:${.6 + Math.random() * .8}s;animation-delay:${Math.random() * .1}s;`;
+                document.body.appendChild(d);
+                d.addEventListener('animationend', () => d.remove());
+            }
+        }
+
+        function launchConfetti() {
+            const colors = ['#FFD700', '#00D4FF', '#FF3D5A', '#00FF99', '#FF9F40', '#C084FC', '#fff'];
+            for (let i = 0; i < 70; i++) {
+                const c = document.createElement('div');
+                c.className = 'cf';
+                c.style.cssText = `left:${Math.random() * 100}%;
+                background:${colors[i % colors.length]};
+                width:${5 + Math.random() * 8}px;height:${8 + Math.random() * 10}px;
+                border-radius:${Math.random() > .5 ? '50%' : '2px'};
+                opacity:${.7 + Math.random() * .3};
+                animation-duration:${1.2 + Math.random() * 2}s;
+                animation-delay:${Math.random() * .5}s;`;
+                document.getElementById('cfWrap').appendChild(c);
+                c.addEventListener('animationend', () => c.remove());
+            }
+        }
+
+        document.addEventListener('click', initAudio, { once: true });
+        
+        // Define placeUserBid since the button calls it directly
+        function placeUserBid() {
+            const btn = document.getElementById('bidBtn');
+            if (btn && btn.onclick) {
+                btn.onclick();
+            }
+        }
+
+        async function fetchAiStrategy(teamName, player, squad = []) {
+            document.getElementById('aiIdleMsg').style.display = 'none';
+            document.getElementById('aiResult').style.display = 'none';
+            document.getElementById('aiLoading').style.display = 'block';
+
+            try {
+                const res = await fetch('/api/ai/strategy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ teamName, player, squad })
+                });
+                const data = await res.json();
+                
+                document.getElementById('aiLoading').style.display = 'none';
+                if (data.success) {
+                    document.getElementById('aiResult').style.display = 'block';
+                    document.getElementById('aiLiveStats').textContent = data.liveStats || "Fetching live data...";
+                    document.getElementById('aiText').textContent = data.strategy;
+                    
+                    // Render AI Fit Score & Verdict Reason
+                    if (data.fitScore) {
+                        document.getElementById('aiFitScoreBox').style.display = 'block';
+                        document.getElementById('aiFitScoreCircle').textContent = data.fitScore;
+                        document.getElementById('aiFitScoreReason').textContent = data.fitReason || (parseInt(data.fitScore) >= 80 ? "Highly recommended target buy." : "Consider picking only at low value.");
+                    } else {
+                        document.getElementById('aiFitScoreBox').style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('aiResult').style.display = 'block';
+                    document.getElementById('aiLiveStats').textContent = "⚠️ Data unavailable.";
+                    document.getElementById('aiText').textContent = "⚠️ Strategy unavailable at this moment.";
+                    document.getElementById('aiFitScoreBox').style.display = 'none';
+                }
+            } catch (e) {
+                document.getElementById('aiLoading').style.display = 'none';
+                document.getElementById('aiResult').style.display = 'block';
+                document.getElementById('aiLiveStats').textContent = "⚠️ Network error retrieving live stats.";
+                document.getElementById('aiText').textContent = "⚠️ Network error retrieving strategy.";
+                document.getElementById('aiFitScoreBox').style.display = 'none';
+            }
+        }
+
+        async function fetchPregameStrategy(teamName, players) {
+            const strategyCacheKey = `ai_strategy_${roomCode}_${teamId}`;
+            const cachedStrategy = sessionStorage.getItem(strategyCacheKey);
+            if (cachedStrategy) {
+                document.getElementById('aiIdleMsg').style.display = 'none';
+                document.getElementById('aiLoading').style.display = 'none';
+                document.getElementById('aiResult').style.display = 'none';
+                document.getElementById('aiPreGame').style.display = 'block';
+                document.getElementById('aiPreGameText').innerHTML = cachedStrategy;
+                pregameStrategyFetched = true;
+                return;
+            }
+
+            document.getElementById('aiIdleMsg').style.display = 'none';
+            document.getElementById('aiResult').style.display = 'none';
+            document.getElementById('aiPreGame').style.display = 'none';
+            document.getElementById('aiLoading').style.display = 'block';
+
+            try {
+                // Filter only available players to save token context
+                const availablePlayers = players.filter(p => p.status === 'available').map(p => `${p.name} (${p.role})`).join(', ');
+                
+                const res = await fetch('/api/ai/pregame-strategy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ teamName, availablePlayers })
+                });
+                const data = await res.json();
+                
+                document.getElementById('aiLoading').style.display = 'none';
+                if (data.success) {
+                    sessionStorage.setItem(strategyCacheKey, data.strategy);
+                    document.getElementById('aiPreGame').style.display = 'block';
+                    document.getElementById('aiPreGameText').innerHTML = data.strategy;
+                } else {
+                    document.getElementById('aiIdleMsg').style.display = 'block';
+                }
+            } catch (e) {
+                document.getElementById('aiLoading').style.display = 'none';
+                document.getElementById('aiIdleMsg').style.display = 'block';
+            }
+        }
+
+        /* ── WELCOME MODAL FUNCTIONS ── */
+        function openAiWelcomeModal(team, players) {
+            const modal = document.getElementById('aiWelcomeModal');
+            const welcomeMsg = document.getElementById('aiModalWelcomeMsg');
+            const dismissBtn = document.getElementById('aiModalDismissBtn');
+            const loadingSec = document.getElementById('aiModalLoading');
+            const bodySec = document.getElementById('aiModalBody');
+            
+            let ownerName = 'Franchise Owner';
+            try {
+                const s = JSON.parse(sessionStorage.getItem('ipl_session'));
+                if (s && s.name) ownerName = s.name;
+            } catch (e) {}
+            
+            welcomeMsg.textContent = `Welcome, ${ownerName} to the command center of ${team.name}!`;
+            modal.classList.add('show');
+            
+            // Trigger pregame strategy generation for the modal
+            fetchModalStrategy(team.name, players);
+        }
+
+        async function fetchModalStrategy(teamName, players) {
+            const dismissBtn = document.getElementById('aiModalDismissBtn');
+            const loadingSec = document.getElementById('aiModalLoading');
+            const bodySec = document.getElementById('aiModalBody');
+            const strategyCacheKey = `ai_strategy_${roomCode}_${teamId}`;
+            
+            try {
+                const availablePlayers = players.filter(p => p.status === 'available').map(p => `${p.name} (${p.role})`).join(', ');
+                
+                const res = await fetch('/api/ai/pregame-strategy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ teamName, availablePlayers })
+                });
+                const data = await res.json();
+                
+                loadingSec.style.display = 'none';
+                bodySec.style.display = 'block';
+                
+                if (data.success) {
+                    sessionStorage.setItem(strategyCacheKey, data.strategy);
+                    bodySec.innerHTML = data.strategy;
+                    dismissBtn.disabled = false;
+                    dismissBtn.textContent = 'ENTER AUCTION ARENA';
+                } else {
+                    bodySec.innerHTML = `<p style="color:var(--red)">⚠️ Strategic intelligence report could not be compiled. Direct link to satellite feeds failed.</p>`;
+                    dismissBtn.disabled = false;
+                    dismissBtn.textContent = 'ENTER ARENA ANYWAY';
+                }
+            } catch (e) {
+                loadingSec.style.display = 'none';
+                bodySec.style.display = 'block';
+                bodySec.innerHTML = `<p style="color:var(--red)">⚠️ Connection to AI core severed. Bypassing analytics...</p>`;
+                dismissBtn.disabled = false;
+                dismissBtn.textContent = 'ENTER ARENA ANYWAY';
+            }
+        }
+
+        function closeAiModal() {
+            const modal = document.getElementById('aiWelcomeModal');
+            modal.classList.remove('show');
+            
+            const strategyCacheKey = `ai_strategy_${roomCode}_${teamId}`;
+            const modalShownCacheKey = `ai_modal_shown_${roomCode}_${teamId}`;
+            sessionStorage.setItem(modalShownCacheKey, 'true'); // Save that modal was shown
+            
+            // Instantly render the Pre-game Strategy in the sidebar upon closing
+            const cachedStrategy = sessionStorage.getItem(strategyCacheKey);
+            if (cachedStrategy) {
+                document.getElementById('aiIdleMsg').style.display = 'none';
+                document.getElementById('aiLoading').style.display = 'none';
+                document.getElementById('aiResult').style.display = 'none';
+                document.getElementById('aiPreGame').style.display = 'block';
+                document.getElementById('aiPreGameText').innerHTML = cachedStrategy;
+                pregameStrategyFetched = true;
+            }
+            
+            initAudio(); // Initialize audio context on first button click!
+            playSound('hammer'); // Play satisfying hammer slam sound!
+        }
+
+        /* ──────── DYNAMIC STATS ──────── */
+        function renderStatsGrid(p, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            if (!p) return;
+
+            const makeSc = (lbl, val, cls='') => `<div class="sc"><div class="sc-lbl">${lbl}</div><div class="sc-val ${cls}">${val || '—'}</div></div>`;
+
+            let html = '';
+            if (p.role === 'BAT' || p.role === 'WK') {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('INN', p.innings);
+                html += makeSc('RUNS', p.runs, 'g');
+                html += makeSc('BALLS', p.balls);
+                html += makeSc('HIGH', p.highest);
+                html += makeSc('AVG', p.avg, 'c');
+                html += makeSc('S/R', p.sr);
+                html += makeSc('NO', p.notOut);
+                html += makeSc('4s', p.fours);
+                html += makeSc('6s', p.sixes, 'c');
+                html += makeSc('50s', p.fifties);
+                html += makeSc('100s', p.hundreds, 'g');
+            } else if (p.role === 'BOWL') {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('INN', p.innings);
+                html += makeSc('BALLS', p.balls);
+                html += makeSc('RUNS', p.runs);
+                html += makeSc('MDN', p.maidens);
+                html += makeSc('WKTS', p.wickets, 'r');
+                html += makeSc('AVG', p.avg, 'c');
+                html += makeSc('ECON', p.economy);
+                html += makeSc('S/R', p.sr);
+                html += makeSc('BBI', p.bbi, 'g');
+            } else if (p.role === 'ALL-R') {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('RUNS', p.runs, 'g');
+                html += makeSc('AVG', p.avg, 'c');
+                html += makeSc('S/R', p.sr);
+                html += makeSc('HIGH', p.highest);
+                html += makeSc('50s', p.fifties);
+                html += makeSc('100s', p.hundreds, 'g');
+                html += makeSc('6s', p.sixes, 'c');
+                html += makeSc('WKTS', p.wickets, 'r');
+                html += makeSc('ECON', p.economy);
+                html += makeSc('BBI', p.bbi, 'g');
+                html += makeSc('MDN', p.maidens);
+            } else {
+                html += makeSc('MAT', p.matches);
+                html += makeSc('RUNS', p.runs, 'g');
+                html += makeSc('WKTS', p.wickets, 'r');
+                html += makeSc('AVG', p.avg, 'c');
+            }
+            container.innerHTML = html;
+        }
+
+        let isLeftHidden = false;
+        let isRightHidden = false;
+
+        function updateWorkspaceGrid() {
+            const ws = document.getElementById('mainWorkspace');
+            const leftW = isLeftHidden ? '0px' : '290px';
+            const rightW = isRightHidden ? '0px' : '290px';
+            ws.style.gridTemplateColumns = `${leftW} 1fr ${rightW}`;
+        }
+
+        function checkMobileOverlay() {
+            const leftOpen = document.getElementById('panelLeft').classList.contains('show-mobile');
+            const rightOpen = document.getElementById('panelRight').classList.contains('show-mobile');
+            if (leftOpen || rightOpen) {
+                document.getElementById('mobileOverlay').classList.add('show');
+            } else {
+                document.getElementById('mobileOverlay').classList.remove('show');
+            }
+        }
+
+        function closeAllPanels() {
+            document.getElementById('panelLeft').classList.remove('show-mobile');
+            document.getElementById('panelRight').classList.remove('show-mobile');
+            checkMobileOverlay();
+        }
+
+        function toggleLeftPanel() {
+            if (window.innerWidth <= 900) {
+                document.getElementById('panelLeft').classList.toggle('show-mobile');
+                checkMobileOverlay();
+            } else {
+                isLeftHidden = !isLeftHidden;
+                updateWorkspaceGrid();
+                document.getElementById('floatingShowBtnLeft').style.display = isLeftHidden ? 'block' : 'none';
+            }
+        }
+
+        function toggleRightPanel() {
+            if (window.innerWidth <= 900) {
+                document.getElementById('panelRight').classList.toggle('show-mobile');
+                checkMobileOverlay();
+            } else {
+                isRightHidden = !isRightHidden;
+                updateWorkspaceGrid();
+                document.getElementById('floatingShowBtnRight').style.display = isRightHidden ? 'block' : 'none';
+            }
+        }
+        
+        // Handle window resize to reset states if crossing breakpoint
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 900) {
+                closeAllPanels();
+                document.querySelectorAll('.close-mobile-btn').forEach(b => b.style.display = 'none');
+                document.querySelectorAll('.hide-desktop-btn').forEach(b => b.style.display = 'inline-block');
+            } else {
+                document.querySelectorAll('.close-mobile-btn').forEach(b => b.style.display = 'inline-block');
+                document.querySelectorAll('.hide-desktop-btn').forEach(b => b.style.display = 'none');
+            }
+        });
+        
+        // Initial button setup
+        if (window.innerWidth <= 900) {
+            document.querySelectorAll('.close-mobile-btn').forEach(b => b.style.display = 'inline-block');
+            document.querySelectorAll('.hide-desktop-btn').forEach(b => b.style.display = 'none');
+        }
+
+        function toggleChat() {
+            const w = document.getElementById('chatWidget');
+            w.classList.toggle('collapsed');
+            const btn = document.getElementById('chatToggleBtn').querySelector('.pv');
+            btn.textContent = 'CHAT';
+            btn.style.color = 'var(--gold)';
+        }
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || !socket) return;
+            let senderName = myTeam ? myTeam.name : 'Player';
+            socket.emit('chat_message', { lobbyId, sender: senderName, text });
+            input.value = '';
+        }
+        function appendChatMessage(msg) {
+            const box = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            if (msg.system) {
+                div.className = 'chat-msg system';
+                div.innerHTML = msg.text;
+            } else {
+                div.className = 'chat-msg';
+                div.innerHTML = `<span class="sender">${msg.sender}:</span>${msg.text}`;
+            }
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+            const w = document.getElementById('chatWidget');
+            if (w.classList.contains('collapsed')) {
+                const btn = document.getElementById('chatToggleBtn').querySelector('.pv');
+                btn.textContent = 'NEW MSG!';
+                btn.style.color = 'var(--green)';
+            }
+        }
+
+        init();
+    </script>
+
+    <!-- ═══ AI WELCOME MODAL ═══ -->
+    <div id="aiWelcomeModal" class="ai-modal-overlay">
+        <div class="ai-modal-content">
+            <div class="ai-modal-header">
+                <div class="ai-brain-anim">🧠</div>
+                <div class="ai-modal-title">AI STRATEGIC DEBRIEFING</div>
+            </div>
+            <div id="aiModalWelcomeMsg" class="ai-welcome-msg">Welcome Franchise Owner!</div>
+            <div class="ai-divider"></div>
+            
+            <div id="aiModalLoading" class="ai-modal-loading">
+                <div class="ai-spinner"></div>
+                <div class="ai-loading-text">Analyzing Pitch Advantage & Cricbuzz Live Stats...</div>
+            </div>
+            
+            <div id="aiModalBody" class="ai-modal-body" style="display: none;"></div>
+            
+            <button id="aiModalDismissBtn" class="ai-dismiss-btn" onclick="closeAiModal()" disabled>LOCKED BY ANALYTICS</button>
+        </div>
+    </div>
+</body>
+</html>
