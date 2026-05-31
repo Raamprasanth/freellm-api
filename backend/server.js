@@ -7,11 +7,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 // Import routes
-const indexRoutes = require('./routes/indexroutes');
-const loginRoutes = require('./routes/loginroutes');
-const roomRoutes  = require('./routes/roomroutes');
-const lobbyRoutes = require('./routes/lobbyroutes');
-const aiRoutes    = require('./routes/airoutes');
+const indexRoutes = require('./api_routes/indexroutes');
+const loginRoutes = require('./api_routes/loginroutes');
+const roomRoutes  = require('./api_routes/roomroutes');
+const lobbyRoutes = require('./api_routes/lobbyroutes');
+const aiRoutes    = require('./api_routes/airoutes');
 
 const app = express();
 const server = http.createServer(app);
